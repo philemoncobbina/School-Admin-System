@@ -31,6 +31,11 @@ import StudentAuthPage from './Pages/StudentAuthPage';
 import CreateBookListpage from './Pages/CreateBookListpage';
 import BookListPage from './Pages/BookListPage';
 import EditBooklistPage from './Pages/EditBooklistPage';
+import BillingItems from './layouts/Billing/BillingItems';
+import StudentBills from './layouts/Billing/StudentBills';
+import StudentBillDetail from './layouts/Billing/StudentBillDetail'; 
+import  BillingTemplates from './layouts/Billing/BillingTemplates';
+import CreateStudentBill from './layouts/Billing/CreateStudentBill';
 
 // Result Pages
 import CourseManagementPage from './Pages/ResultPage/CourseManagementPage';
@@ -216,6 +221,27 @@ const router = createBrowserRouter([
       {
         path: 'complaints/edit/:id',
         element: <EditComplain />,
+      },
+      
+      {
+        path: 'billing/items',
+        element: <BillingItems />,
+      },
+      {
+        path: 'billing/bills',
+        element: <StudentBills />,
+      },
+      {
+        path: 'billing/templates',
+        element: <BillingTemplates />,
+      },
+      {
+        path: 'billing/create-student-bill',
+        element: < CreateStudentBill/>,
+      },
+      {
+        path: 'billing/bills/:id',
+        element: <StudentBillDetail />,
       },
     ],
   },

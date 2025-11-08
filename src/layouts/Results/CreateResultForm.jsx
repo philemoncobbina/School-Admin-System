@@ -13,7 +13,7 @@ const CreateResultForm = () => {
   const [courseResults, setCourseResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState(null);
   
   // Additional fields state
   const [daysPresent, setDaysPresent] = useState(0);
@@ -56,7 +56,8 @@ const CreateResultForm = () => {
         setStudents(studentsData);
         setLoading(false);
       } catch (err) {
-        setError('Failed to fetch students');
+        const errorMessage = extractErrorMessage(err);
+        setError(errorMessage || 'Failed to fetch students');
         setLoading(false);
       }
     };
@@ -85,13 +86,98 @@ const CreateResultForm = () => {
         setCourseResults(initialCourseResults);
         setLoading(false);
       } catch (err) {
-        setError('Failed to fetch courses');
+        const errorMessage = extractErrorMessage(err);
+        setError(errorMessage || 'Failed to fetch courses');
         setLoading(false);
       }
     };
     
     fetchCourses();
   }, [selectedClass, selectedTerm]);
+
+  // Function to extract error messages from API response
+  const extractErrorMessage = (err) => {
+    console.error('Full error object:', err);
+    console.error('Error response data:', err.response?.data);
+    
+    // Check for different error response formats
+    const responseData = err.response?.data;
+    
+    if (!responseData) {
+      return null;
+    }
+    
+    // If responseData is an array, join the messages
+    if (Array.isArray(responseData)) {
+      return responseData.join(', ');
+    }
+    
+    // If responseData has an array of errors/messages
+    if (responseData.errors && Array.isArray(responseData.errors)) {
+      return responseData.errors.join(', ');
+    }
+    
+    if (responseData.messages && Array.isArray(responseData.messages)) {
+      return responseData.messages.join(', ');
+    }
+    
+    // Check for single message properties
+    if (responseData.message) {
+      return responseData.message;
+    }
+    
+    if (responseData.error) {
+      return responseData.error;
+    }
+    
+    // If responseData is a string
+    if (typeof responseData === 'string') {
+      return responseData;
+    }
+    
+    return null;
+  };
+
+  // Function to extract success messages from API response
+  const extractSuccessMessage = (response) => {
+    console.log('Success response:', response);
+    
+    const responseData = response?.data;
+    
+    if (!responseData) {
+      return 'Result created successfully!';
+    }
+    
+    // If responseData is an array, join the messages
+    if (Array.isArray(responseData)) {
+      return responseData.join(', ');
+    }
+    
+    // If responseData has success messages
+    if (responseData.messages && Array.isArray(responseData.messages)) {
+      return responseData.messages.join(', ');
+    }
+    
+    if (responseData.success && Array.isArray(responseData.success)) {
+      return responseData.success.join(', ');
+    }
+    
+    // Check for single message properties
+    if (responseData.message) {
+      return responseData.message;
+    }
+    
+    if (responseData.success) {
+      return responseData.success;
+    }
+    
+    // If responseData is a string
+    if (typeof responseData === 'string') {
+      return responseData;
+    }
+    
+    return 'Result created successfully!';
+  };
 
   // Handle course result changes
   const handleCourseResultChange = (index, field, value) => {
@@ -157,6 +243,10 @@ const CreateResultForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Clear previous messages
+    setError(null);
+    setSuccess(null);
+    
     // Debug logs before validation
     console.log('Form submission - selectedTerm:', selectedTerm);
     console.log('Form submission - isThirdTerm:', isThirdTerm);
@@ -192,8 +282,11 @@ const CreateResultForm = () => {
     
     try {
       setLoading(true);
-      await apiService.results.create(resultData);
-      setSuccess(true);
+      const response = await apiService.results.create(resultData);
+      
+      // Extract success message from API response
+      const successMessage = extractSuccessMessage(response);
+      setSuccess(successMessage);
       setError(null);
       
       // Reset form
@@ -208,10 +301,10 @@ const CreateResultForm = () => {
       
       setLoading(false);
     } catch (err) {
-      console.error('Full error object:', err); // Debug log
-      console.error('Error response data:', err.response?.data); // Debug log
-      setError(err.response?.data?.message || err.response?.data?.error || 'Failed to create result');
-      setSuccess(false);
+      // Extract error message from API response
+      const errorMessage = extractErrorMessage(err);
+      setError(errorMessage || 'Failed to create result');
+      setSuccess(null);
       setLoading(false);
     }
   };
@@ -242,7 +335,7 @@ const CreateResultForm = () => {
       
       {success && (
         <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-          Result created successfully!
+          {success}
         </div>
       )}
       

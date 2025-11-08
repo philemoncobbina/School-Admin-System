@@ -1,7 +1,7 @@
 import axios, { AxiosResponse } from 'axios';
 
 // Base URL for API requests
-const API_URL = 'https://api.plvcmonline.uk/api/';
+const API_URL = 'http://127.0.0.1:8000/api/';
 
 // Types
 export interface StudentUser {

@@ -15,7 +15,7 @@ const RequirePrincipalAuth = ({ children }) => {
         setLoggedIn(authStatus.loggedIn);
 
         if (authStatus.loggedIn) {
-          const response = await axios.get('https://api.plvcmonline.uk/api/user-detail-auth/', {
+          const response = await axios.get('http://127.0.0.1:8000/api/user-detail-auth/', {
             headers: {
               Authorization: `Bearer ${localStorage.getItem('access_token')}`,
             },
