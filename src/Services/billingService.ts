@@ -1,7 +1,7 @@
 // src/services/billingService.ts
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api"; // Adjust if different
+const API_URL = "http://127.0.0.1:8000/api"; // Adjust if different
 
 // Helper function to get authorization headers
 const getAuthHeaders = (): { Authorization: string } => {

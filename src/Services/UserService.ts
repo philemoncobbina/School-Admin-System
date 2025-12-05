@@ -14,7 +14,7 @@ class UserService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = 'http://127.0.0.1:8000/api'; // Replace with your backend URL
+    this.baseUrl = '/api'; // Replace with your backend URL
   }
 
   // Method to fetch user details
