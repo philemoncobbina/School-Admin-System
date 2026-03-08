@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Base API URL
-const API_URL = 'https://api.plvcmonline.uk/api';
+const API_URL = 'http://localhost:8000/api';
 
 // Helper function to get authorization headers
 const getAuthHeaders = () => {

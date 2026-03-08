@@ -34,7 +34,7 @@ import EditBooklistPage from './Pages/EditBooklistPage';
 import BillingItems from './layouts/Billing/BillingItems';
 import StudentBills from './layouts/Billing/StudentBills';
 import StudentBillDetail from './layouts/Billing/StudentBillDetail'; 
-import  BillingTemplates from './layouts/Billing/BillingTemplates';
+import BillingTemplates from './layouts/Billing/BillingTemplates';
 import CreateStudentBill from './layouts/Billing/CreateStudentBill';
 
 // Result Pages
@@ -48,6 +48,10 @@ import IdleTimerHandler from './Services/IdleTimerHandler';
 import RequireAuth from './Services/RequireAuth';
 import RequirePrincipalAuth from './Services/RequirePrincipalAuth';
 import AuthProvider from './Services/AuthProvider';
+
+import BlogPage from './Pages/BlogPage';
+import CreateBlogPage from './Pages/CreateBlogPage';
+import EditBlogPage from './Pages/EditBlogPage';
 
 const router = createBrowserRouter([
   // Public Routes
@@ -165,6 +169,30 @@ const router = createBrowserRouter([
           </RequirePrincipalAuth>
         ),
       },
+      {
+        path: 'blog',
+        element: (
+          <RequireAuth>
+            <BlogPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'blog/create-blog',
+        element: (
+          <RequireAuth>
+            <CreateBlogPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'blog/edit-blog/:slug',
+        element: (
+          <RequireAuth>
+            <EditBlogPage />
+          </RequireAuth>
+        ),
+      },
 
       // Results Management
       {
@@ -175,7 +203,6 @@ const router = createBrowserRouter([
           </RequirePrincipalAuth>
         ),
       },
-      
       {
         path: 'results-management/',
         element: (
@@ -223,6 +250,7 @@ const router = createBrowserRouter([
         element: <EditComplain />,
       },
       
+      // Billing
       {
         path: 'billing/items',
         element: <BillingItems />,
@@ -237,7 +265,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'billing/create-student-bill',
-        element: < CreateStudentBill/>,
+        element: <CreateStudentBill />,
       },
       {
         path: 'billing/bills/:id',
@@ -245,10 +273,6 @@ const router = createBrowserRouter([
       },
     ],
   },
-
-  
- 
-  
 ]);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -256,5 +280,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <AuthProvider>
       <RouterProvider router={router} />
     </AuthProvider>
-  </React.StrictMode>,
+  </React.StrictMode>
 );

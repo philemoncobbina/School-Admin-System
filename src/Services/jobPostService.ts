@@ -49,7 +49,7 @@ export interface JobPostLog {
     action_type: 'CREATE' | 'UPDATE' | 'STATUS_CHANGE' | 'PUBLISH' | 'SCHEDULE';
 }
 
-const API_URL = 'https://api.plvcmonline.uk/api/api';
+const API_URL = 'http://localhost:8000/api/api';
 
 // Configure axios instance with basic headers
 const axiosInstance = axios.create({

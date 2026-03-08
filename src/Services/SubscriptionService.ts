@@ -1,7 +1,7 @@
 // SubscriptionService.ts
 import axios from 'axios';
 
-const API_BASE_URL = 'https://api.plvcmonline.uk/api';  // Adjust based on your backend route
+const API_BASE_URL = 'http://localhost:8000/api';  // Adjust based on your backend route
 
 // Define types for Subscription and EmailList
 export interface Subscription {

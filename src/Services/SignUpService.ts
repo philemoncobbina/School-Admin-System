@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://api.plvcmonline.uk/api/'; // Replace with your API endpoint
+const API_URL = 'http://localhost:8000/api/'; // Replace with your API endpoint
 
 interface SignUpData {
     email: string;
