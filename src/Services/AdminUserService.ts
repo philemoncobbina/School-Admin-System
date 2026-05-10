@@ -1,54 +1,21 @@
+// AdminUserService.ts
+
 import axios from 'axios';
 
-const API_URL = 'http://127.0.0.1:8000/api/admin'; // Adjust to your backend URL
+const api = axios.create({
+  baseURL: 'http://127.0.0.1:8000/api/admin',
+  headers: { 'Content-Type': 'application/json' },
+});
 
-// Function to get authorization headers
-const getAuthHeaders = () => {
-    const token = localStorage.getItem('access_token'); // Adjust based on where you store the token
-    return {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-    };
-};
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-// Fetch all users
-export const fetchAllUsers = () => {
-    return axios.get(`${API_URL}/users/`, {
-        headers: getAuthHeaders(),
-    });
-};
-
-// Block a user
-export const blockUser = (userId) => {
-    return axios.patch(`${API_URL}/user/${userId}/`, { action: 'block' }, {
-        headers: getAuthHeaders(),
-    });
-};
-
-// Unblock a user
-export const unblockUser = (userId) => {
-    return axios.patch(`${API_URL}/user/${userId}/`, { action: 'unblock' }, {
-        headers: getAuthHeaders(),
-    });
-};
-
-// Activate a user
-export const activateUser = (userId) => {
-    return axios.patch(`${API_URL}/user/${userId}/`, { action: 'activate' }, {
-        headers: getAuthHeaders(),
-    });
-};
-
-// Edit user details
-export const editUser = (userId, updatedData) => {
-    return axios.patch(`${API_URL}/user/${userId}/`, { ...updatedData, action: 'edit' }, {
-        headers: getAuthHeaders(),
-    });
-};
-
-// Delete user
-export const deleteUser = (userId) => {
-    return axios.delete(`${API_URL}/user/${userId}/`, {
-        headers: getAuthHeaders(),
-    });
-};
+export const fetchAllUsers  = ()               => api.get(`/users/`);
+export const blockUser      = (id: number)     => api.patch(`/user/${id}/`, { action: 'block' });
+export const unblockUser    = (id: number)     => api.patch(`/user/${id}/`, { action: 'unblock' });
+export const activateUser   = (id: number)     => api.patch(`/user/${id}/`, { action: 'activate' });
+export const editUser       = (id: number, data: object) => api.patch(`/user/${id}/`, { ...data, action: 'edit' });
+export const deleteUser     = (id: number)     => api.delete(`/user/${id}/`);

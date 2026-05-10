@@ -312,17 +312,17 @@ const EditTicketForm = () => {
           onClick={() => navigate('/dashboard/tickets')}
         >
           <ArrowLeft className="h-4 w-4" />
-          <span>Back to Reservations</span>
+          <span>Back to Tickets</span>
         </Button>
-        <h1 className="text-2xl font-bold text-gray-800">Edit Reservation</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Edit Ticket</h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Form Card */}
         <Card className="lg:col-span-2 border border-gray-200 shadow-md bg-white">
           <CardHeader className="bg-gray-50 border-b border-gray-100">
-            <CardTitle className="text-gray-800">Reservation Details</CardTitle>
-            <CardDescription className="text-gray-500">Update the reservation information</CardDescription>
+            <CardTitle className="text-gray-800">Ticket Details</CardTitle>
+            <CardDescription className="text-gray-500">Update the ticket information</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
             <form id="edit-form" onSubmit={handleFormSubmit} className="space-y-4">
@@ -458,7 +458,7 @@ const EditTicketForm = () => {
         {/* Screenshot and Status Card */}
         <Card className="border border-gray-200 shadow-md bg-white">
           <CardHeader className="bg-gray-50 border-b border-gray-100">
-            <CardTitle className="text-gray-800">Reservation Status</CardTitle>
+            <CardTitle className="text-gray-800">Ticket Status</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
             <div className="space-y-6">
@@ -520,7 +520,7 @@ const EditTicketForm = () => {
       <Card className="mt-6 border border-gray-200 shadow-md bg-white">
         <CardHeader className="bg-gray-50 border-b border-gray-100">
           <CardTitle className="text-gray-800">Activity Log</CardTitle>
-          <CardDescription className="text-gray-500">History of changes to this reservation</CardDescription>
+          <CardDescription className="text-gray-500"></CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">

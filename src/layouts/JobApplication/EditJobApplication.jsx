@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { jobApplicationService } from '../../Services/Jobapplication';
 import { FaArrowLeft } from 'react-icons/fa';
-import { FiTrash2, FiSave, FiClock } from 'react-icons/fi';
+import { FiTrash2, FiSave, FiClock, FiFileText } from 'react-icons/fi';
 
 const EditJobApplication = () => {
   const { id } = useParams();
@@ -17,16 +17,15 @@ const EditJobApplication = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch application details
         const applicationData = await jobApplicationService.getApplicationById(id);
         setApplication(applicationData);
-        
-        if (applicationData.resume && typeof applicationData.resume === 'string') {
-          const parts = applicationData.resume.split('/');
-          setResumeFileName(parts[parts.length - 1]);
+
+        const resumeUrl = applicationData.resume_url || applicationData.resume;
+        if (resumeUrl && typeof resumeUrl === 'string') {
+          const parts = resumeUrl.split('/');
+          setResumeFileName(decodeURIComponent(parts[parts.length - 1]));
         }
-        
-        // Fetch application logs
+
         const logsData = await jobApplicationService.getApplicationLogs(id);
         setLogs(logsData);
       } catch (err) {
@@ -37,35 +36,35 @@ const EditJobApplication = () => {
         setLogsLoading(false);
       }
     };
-    
+
     fetchData();
   }, [id]);
 
   const handleUpdate = async () => {
     try {
       setLoading(true);
-      
-      // Only include editable fields
+
       const updatedData = {
         first_name: application.first_name,
         last_name: application.last_name,
         email: application.email,
         educational_level: application.educational_level,
-        status: application.status
+        status: application.status,
       };
 
       await jobApplicationService.updateApplication(id, updatedData);
 
-      // Refresh logs after update
       const logsData = await jobApplicationService.getApplicationLogs(id);
       setLogs(logsData);
 
-      setLoading(false);
-      navigate('/dashboard/jobapplication', { state: { message: 'Application updated successfully!' } });
+      navigate('/dashboard/jobapplication', {
+        state: { message: 'Application updated successfully!' },
+      });
     } catch (err) {
-      setLoading(false);
       setError('Failed to update application');
       console.error('Failed to update:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -74,7 +73,9 @@ const EditJobApplication = () => {
       try {
         setLoading(true);
         await jobApplicationService.deleteApplication(id);
-        navigate('/dashboard/jobapplication', { state: { message: 'Application deleted successfully!' } });
+        navigate('/dashboard/jobapplication', {
+          state: { message: 'Application deleted successfully!' },
+        });
       } catch (err) {
         setError('Failed to delete application');
         console.error('Failed to delete application:', err);
@@ -84,15 +85,12 @@ const EditJobApplication = () => {
     }
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  };
+  const formatDate = (dateString) => new Date(dateString).toLocaleString();
 
   const parseChangedFields = (changedFieldsStr) => {
     try {
       return JSON.parse(changedFieldsStr);
-    } catch (e) {
+    } catch {
       return changedFieldsStr;
     }
   };
@@ -100,7 +98,7 @@ const EditJobApplication = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
       </div>
     );
   }
@@ -109,7 +107,7 @@ const EditJobApplication = () => {
     return (
       <div className="bg-red-50 p-4 rounded-lg shadow mb-4">
         <p className="text-red-700 font-medium">{error}</p>
-        <button 
+        <button
           onClick={() => navigate('/dashboard/jobapplication')}
           className="mt-2 text-red-700 underline"
         >
@@ -123,12 +121,14 @@ const EditJobApplication = () => {
     PENDING: 'bg-yellow-100 text-yellow-800',
     SHORTLISTED: 'bg-blue-100 text-blue-800',
     REJECTED: 'bg-red-100 text-red-800',
-    HIRED: 'bg-green-100 text-green-800'
+    HIRED: 'bg-green-100 text-green-800',
   };
+
+  const resumeUrl = application.resume_url || application.resume || null;
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-      {/* Simplified Header */}
+      {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between mb-2">
           <button
@@ -140,21 +140,19 @@ const EditJobApplication = () => {
           </button>
           <h1 className="text-2xl font-bold text-gray-800">Edit Job Application</h1>
         </div>
-        
-        {/* Job summary info */}
+
         <div className="mt-4 flex flex-wrap items-center gap-4">
           <div>
             <div className="text-sm text-gray-500">Job Title</div>
             <div className="font-medium">{application.job_title || 'Untitled Position'}</div>
           </div>
-          
           <div>
             <div className="text-sm text-gray-500">Reference</div>
             <div className="font-medium">{application.job_reference_number || 'N/A'}</div>
           </div>
         </div>
       </div>
-      
+
       {/* Form Content */}
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -168,7 +166,6 @@ const EditJobApplication = () => {
               placeholder="First Name"
             />
           </div>
-          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
             <input
@@ -180,7 +177,7 @@ const EditJobApplication = () => {
             />
           </div>
         </div>
-        
+
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
           <input
@@ -191,7 +188,7 @@ const EditJobApplication = () => {
             placeholder="Email"
           />
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Educational Level</label>
@@ -207,7 +204,7 @@ const EditJobApplication = () => {
               <option value="PHD">PhD</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Application Status</label>
             <select
@@ -220,7 +217,7 @@ const EditJobApplication = () => {
               <option value="REJECTED">Rejected</option>
               <option value="HIRED">Hired</option>
             </select>
-            
+
             {application.status && (
               <div className={`mt-2 inline-block px-3 py-1 rounded-full text-sm font-medium ${statusColors[application.status]}`}>
                 {application.status.charAt(0) + application.status.slice(1).toLowerCase()}
@@ -228,24 +225,37 @@ const EditJobApplication = () => {
             )}
           </div>
         </div>
-        
-        {/* Resume Section - Read Only */}
+
+        {/* Resume Section */}
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="flex items-center mb-2">
+          <div className="flex items-center mb-3">
             <label className="block text-sm font-medium text-gray-700">Resume</label>
             <span className="ml-2 px-2 py-0.5 text-xs bg-gray-200 text-gray-700 rounded">Read Only</span>
           </div>
-          
-          {application.resume ? (
+
+          {resumeUrl ? (
             <div className="flex items-center p-3 bg-white rounded border border-gray-200">
+              <FiFileText className="h-5 w-5 text-red-500 mr-3 flex-shrink-0" />
               <div className="flex-1 truncate">
-                <div className="text-sm font-medium">{resumeFileName || 'Resume'}</div>
-                <div className="text-xs text-gray-500">Attached resume file</div>
+                <div className="text-sm font-medium text-gray-900 truncate">
+                  {resumeFileName || 'resume.pdf'}
+                </div>
+                <div className="text-xs text-gray-500">PDF Document</div>
               </div>
+
               <a
-                href={application.resume}
-                download
-                className="ml-2 px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm font-medium"
+                href={resumeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-3 px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium flex-shrink-0"
+              >
+                View
+              </a>
+
+              <a
+                href={resumeUrl}
+                download={resumeFileName || 'resume.pdf'}
+                className="ml-2 px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm font-medium flex-shrink-0"
               >
                 Download
               </a>
@@ -257,17 +267,17 @@ const EditJobApplication = () => {
           )}
         </div>
       </div>
-      
-      {/* Application Log History Section */}
+
+      {/* Activity Log */}
       <div className="px-6 pb-6">
         <div className="flex items-center mb-4">
           <FiClock className="text-gray-500 mr-2" />
           <h2 className="text-xl font-semibold text-gray-800">Activity Log</h2>
         </div>
-        
+
         {logsLoading ? (
           <div className="flex justify-center items-center h-24">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
           </div>
         ) : logs.length > 0 ? (
           <div className="overflow-x-auto">
@@ -280,31 +290,33 @@ const EditJobApplication = () => {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-700 border-b">
-                      {formatDate(log.timestamp)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 border-b">
-                      {log.user_email || 'System'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 border-b">
-                      {typeof log.changed_fields === 'string' ? (
-                        <div>
-                          {Object.entries(parseChangedFields(log.changed_fields)).map(([field, values]) => (
+                {logs.map((log) => {
+                  const parsed = parseChangedFields(log.changed_fields);
+                  return (
+                    <tr key={log.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-700 border-b">
+                        {formatDate(log.timestamp)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 border-b">
+                        {log.user_email || 'System'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 border-b">
+                        {typeof parsed === 'object' && parsed !== null ? (
+                          Object.entries(parsed).map(([field, values]) => (
                             <div key={field} className="mb-1">
-                              <span className="font-medium">{field}</span>: 
-                              <span className="text-red-500 line-through px-1">{values.old}</span> → 
+                              <span className="font-medium">{field}</span>:{' '}
+                              <span className="text-red-500 line-through px-1">{values.old}</span>
+                              {' → '}
                               <span className="text-green-500 px-1">{values.new}</span>
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        log.changed_fields
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                          ))
+                        ) : (
+                          <span>{log.changed_fields}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -314,26 +326,26 @@ const EditJobApplication = () => {
           </div>
         )}
       </div>
-      
+
       {/* Footer Actions */}
       <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-between">
-        <button 
-          onClick={handleDelete} 
+        <button
+          onClick={handleDelete}
           className="px-4 py-2 bg-white border border-red-500 text-red-500 rounded-lg hover:bg-red-50 flex items-center"
         >
           <FiTrash2 className="mr-2" />
           Delete
         </button>
-        
+
         <div className="flex space-x-3">
-          <button 
+          <button
             onClick={() => navigate('/dashboard/jobapplication')}
             className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
           >
             Cancel
           </button>
-          <button 
-            onClick={handleUpdate} 
+          <button
+            onClick={handleUpdate}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
           >
             <FiSave className="mr-2" />

@@ -221,7 +221,7 @@ const BookListDashboard = () => {
         </button>
       )}
       <button
-        onClick={() => navigate('/dashboard/create-booklist')}
+        onClick={() => navigate('/dashboard/booklists/create-booklist')}
         className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
       >
         <PlusCircle className="w-4 h-4 mr-2" /> Create New Book List
