@@ -53,6 +53,9 @@ import BlogPage from './Pages/BlogPage';
 import CreateBlogPage from './Pages/CreateBlogPage';
 import EditBlogPage from './Pages/EditBlogPage';
 
+import RecieptRequestPage from './Pages/RecieptRequestPage';
+import EditReciept from './Pages/EditReciept';
+
 const router = createBrowserRouter([
   // Public Routes
   {
@@ -124,6 +127,10 @@ const router = createBrowserRouter([
       {
         path: 'admissions/edit-admission/:id',
         element: <AdmissionReview />,
+      },
+      {
+        path: 'receipt-request/:id',
+        element: <EditReciept />,
       },
 
       // Job Postings
@@ -270,6 +277,16 @@ const router = createBrowserRouter([
       {
         path: 'billing/bills/:id',
         element: <StudentBillDetail />,
+      },
+
+      // Receipt Request
+      {
+        path: 'receipt-request',
+        element: (
+          <RequireAuth>
+            <RecieptRequestPage />
+          </RequireAuth>
+        ),
       },
     ],
   },
