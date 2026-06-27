@@ -36,7 +36,7 @@ const getAuthHeaders = (): { Authorization: string } => {
 
 // Fetch all bookings
 export const fetchBookings = async (): Promise<Booking[]> => {
-  const response: AxiosResponse = await axios.get('http://localhost:8000/api/reservations/', {
+  const response: AxiosResponse = await axios.get('https://api.cobbina.uk/api/reservations/', {
     headers: getAuthHeaders(),
   });
   return response.data;
@@ -45,7 +45,7 @@ export const fetchBookings = async (): Promise<Booking[]> => {
 // Fetch reservation logs by reservation ID
 export const fetchReservationLogs = async (reservationId: number): Promise<ReservationLog[]> => {
   try {
-    const response: AxiosResponse = await axios.get(`http://localhost:8000/api/reservations/${reservationId}/logs/`, {
+    const response: AxiosResponse = await axios.get(`https://api.cobbina.uk/api/reservations/${reservationId}/logs/`, {
       headers: getAuthHeaders(),
     });
     console.log(`Logs for reservation ID ${reservationId} fetched successfully.`);
@@ -59,7 +59,7 @@ export const fetchReservationLogs = async (reservationId: number): Promise<Reser
 // Delete a booking by ID
 export const deleteBooking = async (id: number): Promise<void> => {
   try {
-    await axios.delete(`http://localhost:8000/api/reservations/${id}/`, {
+    await axios.delete(`https://api.cobbina.uk/api/reservations/${id}/`, {
       headers: getAuthHeaders(),
     });
     console.log(`Booking with ID ${id} deleted successfully.`);
@@ -73,7 +73,7 @@ export const deleteBooking = async (id: number): Promise<void> => {
 export const updateBooking = async (id: number, updatedBooking: Partial<Booking>): Promise<Booking> => {
   try {
     const response: AxiosResponse = await axios.put(
-      `http://localhost:8000/api/reservations/${id}/`, 
+      `https://api.cobbina.uk/api/reservations/${id}/`, 
       updatedBooking,
       { headers: getAuthHeaders() }
     );

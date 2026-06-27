@@ -1,15 +1,47 @@
-import React, { useEffect } from 'react';
-import { isLoggedInSync, startIdleTimer, startTestSessionTimer } from './Login';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { isLoggedIn, startIdleTimer, startTestSessionTimer } from './Login';
+
+// Create context
+const AuthContext = createContext({ 
+  loggedIn: false, 
+  loading: true,
+  user: null 
+});
+
+export const useAuth = () => useContext(AuthContext);
 
 const AuthProvider = ({ children }) => {
+  const [state, setState] = useState({ 
+    loggedIn: false, 
+    loading: true, 
+    user: null 
+  });
+
   useEffect(() => {
-    if (isLoggedInSync()) {
-      startIdleTimer();
-      startTestSessionTimer();
-    }
+    const checkAuth = async () => {
+      const authStatus = await isLoggedIn(); // single API call for whole app
+      
+      setState({
+        loggedIn: authStatus.loggedIn,
+        user: authStatus.user ?? null,
+        loading: false,
+      });
+
+      // Only start timers if actually logged in
+      if (authStatus.loggedIn) {
+        startIdleTimer();
+        startTestSessionTimer();
+      }
+    };
+
+    checkAuth();
   }, []);
 
-  return <>{children}</>;
+  return (
+    <AuthContext.Provider value={state}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export default AuthProvider;

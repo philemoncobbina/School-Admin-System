@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://127.0.0.1:8000/api/'; // Adjust if different
+const API_URL = 'https://api.cobbina.uk/api/'; // Adjust if different
 
 // Helper function to get authorization headers
 export const getAuthHeaders = (): { Authorization: string } => {
@@ -57,25 +57,23 @@ export const login = async (email: string, password: string) => {
 // Function to log out the user
 export const logout = async (): Promise<void> => {
   try {
-    // Call the backend logout endpoint
     await axios.post(`${API_URL}logout-auth/`, {}, {
       headers: getAuthHeaders(),
     });
-    console.log('User logged out successfully.');
 
-    // Redirect to the login page
-    window.location.href = '/login';
-
-    // Clear local storage
+    // Clear ALL localStorage items before redirecting
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
     localStorage.removeItem('isLogged');
     localStorage.removeItem('loginTime');
-    console.log('Local storage cleared.');
+    localStorage.removeItem('user_data'); // ✅ Add this
 
-    
+    window.location.href = '/login';
   } catch (error) {
     console.error('Failed to log out:', error);
+    // Optional: still clear storage even if backend call fails
+    localStorage.clear();
+    window.location.href = '/login';
   }
 };
 

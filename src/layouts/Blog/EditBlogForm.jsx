@@ -219,7 +219,7 @@ const EditBlogForm = () => {
 
   const loadBlog = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/api/posts/${slug}/`, {
+      const res = await fetch(`https://api.cobbina.uk/api/posts/${slug}/`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
       });
 
@@ -492,7 +492,7 @@ const EditBlogForm = () => {
     try {
       setSaving(true);
       const res = await fetch(
-        `http://localhost:8000/api/posts/${slug}/`,
+        `https://api.cobbina.uk/api/posts/${slug}/`,
         {
           method: "PATCH",
           headers: {
@@ -529,7 +529,7 @@ const EditBlogForm = () => {
     try {
       setDeleting(true);
       const res = await fetch(
-        `http://localhost:8000/api/posts/${slug}/`,
+        `https://api.cobbina.uk/api/posts/${slug}/`,
         {
           method: "DELETE",
           headers: {

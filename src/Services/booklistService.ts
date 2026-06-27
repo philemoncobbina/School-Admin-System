@@ -2,7 +2,7 @@
 import axios, { AxiosResponse } from 'axios';
 
 // Base URL for API
-const API_URL = 'http://localhost:8000/api';
+const API_URL = 'https://api.cobbina.uk/api';
 
 // Types
 export interface BookListItem {

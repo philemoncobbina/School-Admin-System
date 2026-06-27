@@ -31,7 +31,7 @@ interface ContactLog {
     timestamp: string; // When the log entry was created
 }
 
-const API_URL = 'http://localhost:8000/api/contacts/'; // Replace with your actual API URL
+const API_URL = 'https://api.cobbina.uk/api/contacts/'; // Replace with your actual API URL
 
 class ContactService {
     async getContacts(): Promise<Contact[]> {

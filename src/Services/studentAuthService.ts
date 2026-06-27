@@ -100,7 +100,7 @@ export const ID_TYPE_OPTIONS: { value: IdType; label: string }[] = [
 // ── Axios instance ─────────────────────────────────────────────────────────
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api/',
+  baseURL: 'https://api.cobbina.uk/api/',
   headers: { 'Content-Type': 'application/json' },
 });
 

@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Base API URL
-const API_URL = 'http://localhost:8000/api';
+const API_URL = 'https://api.cobbina.uk/api';
 
 // Helper function to get authorization headers
 const getAuthHeaders = () => {

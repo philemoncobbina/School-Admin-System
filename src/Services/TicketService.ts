@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000/api/tickets/'; // Replace with your actual API URL
+const API_URL = 'https://api.cobbina.uk/api/tickets/'; // Replace with your actual API URL
 
 export interface Ticket {
     TicketID: string;

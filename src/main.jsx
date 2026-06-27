@@ -11,7 +11,6 @@ import ResultEditView from './layouts/Results/ResultEditView';
 import HomePage from './Pages/HomePage';
 import SignupPage from './Pages/SignupPage';
 import LoginPage from './Pages/LoginPage';
-import DashboardPage from './Pages/DashboardPage';
 import Reservations from './Pages/Reservations';
 import ComplaintForms from './Pages/ComplaintForms';
 import SubscriptionForms from './Pages/SubscriptionForms';
@@ -33,7 +32,7 @@ import BookListPage from './Pages/BookListPage';
 import EditBooklistPage from './Pages/EditBooklistPage';
 import BillingItems from './layouts/Billing/BillingItems';
 import StudentBills from './layouts/Billing/StudentBills';
-import StudentBillDetail from './layouts/Billing/StudentBillDetail'; 
+import StudentBillDetail from './layouts/Billing/StudentBillDetail';
 import BillingTemplates from './layouts/Billing/BillingTemplates';
 import CreateStudentBill from './layouts/Billing/CreateStudentBill';
 
@@ -49,49 +48,48 @@ import RequireAuth from './Services/RequireAuth';
 import RequirePrincipalAuth from './Services/RequirePrincipalAuth';
 import AuthProvider from './Services/AuthProvider';
 
+// Blog
 import BlogPage from './Pages/BlogPage';
 import CreateBlogPage from './Pages/CreateBlogPage';
 import EditBlogPage from './Pages/EditBlogPage';
 
+// Receipts
 import RecieptRequestPage from './Pages/RecieptRequestPage';
 import EditReciept from './Pages/EditReciept';
 
 const router = createBrowserRouter([
-  // Public Routes
-  {
-    path: '/',
-    element: <HomePage />,
-  },
+
+  // Public
   {
     path: '/login',
     element: <LoginPage />,
   },
 
-  // Protected Dashboard Routes
+  // Protected Home
+  {
+    path: '/',
+    element: (
+      <RequireAuth>
+        <HomePage />
+      </RequireAuth>
+    ),
+  },
+
+  // Protected Dashboard Layout
   {
     path: '/dashboard',
     element: (
-      <RequireAuth>
-        <IdleTimerHandler />
-        <SideBar />
-      </RequireAuth>
+      <>
+        <RequireAuth>
+          <IdleTimerHandler />
+          <SideBar />
+        </RequireAuth>
+      </>
     ),
     children: [
-      // Dashboard Home
-      {
-        path: '',
-        element: <DashboardPage />,
-      },
 
-      // User Management
-      {
-        path: 'users',
-        element: (
-          <RequireAuth>
-            <UseradminPage />
-          </RequireAuth>
-        ),
-      },
+      { path: 'users', element: <UseradminPage /> },
+
       {
         path: 'users/create-user',
         element: (
@@ -101,73 +99,25 @@ const router = createBrowserRouter([
         ),
       },
 
-      // Forms
-      {
-        path: 'reservations',
-        element: <Reservations />,
-      },
-      {
-        path: 'complaints',
-        element: <ComplaintForms />,
-      },
-      {
-        path: 'subscriptions',
-        element: <SubscriptionForms />,
-      },
-      {
-        path: 'tickets',
-        element: <TicketPage />,
-      },
+      { path: 'reservations', element: <Reservations /> },
+      { path: 'complaints', element: <ComplaintForms /> },
+      { path: 'subscriptions', element: <SubscriptionForms /> },
+      { path: 'tickets', element: <TicketPage /> },
 
-      // Admissions
-      {
-        path: 'admissions',
-        element: <Admissions />,
-      },
-      {
-        path: 'admissions/edit-admission/:id',
-        element: <AdmissionReview />,
-      },
-      {
-        path: 'receipt-request/:id',
-        element: <EditReciept />,
-      },
+      { path: 'admissions', element: <Admissions /> },
+      { path: 'admissions/edit-admission/:id', element: <AdmissionReview /> },
+      { path: 'receipt-request/:id', element: <EditReciept /> },
 
-      // Job Postings
-      {
-        path: 'jobpost',
-        element: <JobpostPage />,
-      },
-      {
-        path: 'jobpost/new',
-        element: <Addjobpost />,
-      },
-      {
-        path: 'jobpost/:id/edit',
-        element: <JobPostEditPage />,
-      },
-      {
-        path: 'jobapplication',
-        element: <Jobapplicationpage />,
-      },
-      {
-        path: 'jobapplication/edit/:id',
-        element: <EditJobapplicationpage />,
-      },
+      { path: 'jobpost', element: <JobpostPage /> },
+      { path: 'jobpost/new', element: <Addjobpost /> },
+      { path: 'jobpost/:id/edit', element: <JobPostEditPage /> },
+      { path: 'jobapplication', element: <Jobapplicationpage /> },
+      { path: 'jobapplication/edit/:id', element: <EditJobapplicationpage /> },
 
-      // Book Lists
-      {
-        path: 'booklists',
-        element: <BookListPage />,
-      },
-      {
-        path: 'booklists/create-booklist',
-        element: <CreateBookListpage />,
-      },
-      {
-        path: 'booklists/edit/:id',
-        element: <EditBooklistPage />,
-      },
+      { path: 'booklists', element: <BookListPage /> },
+      { path: 'booklists/create-booklist', element: <CreateBookListpage /> },
+      { path: 'booklists/edit/:id', element: <EditBooklistPage /> },
+
       {
         path: 'booklists/create-student',
         element: (
@@ -176,118 +126,37 @@ const router = createBrowserRouter([
           </RequirePrincipalAuth>
         ),
       },
-      {
-        path: 'blog',
-        element: (
-          <RequireAuth>
-            <BlogPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'blog/create-blog',
-        element: (
-          <RequireAuth>
-            <CreateBlogPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'blog/edit-blog/:slug',
-        element: (
-          <RequireAuth>
-            <EditBlogPage />
-          </RequireAuth>
-        ),
-      },
 
-      // Results Management
+      { path: 'blog', element: <BlogPage /> },
+      { path: 'blog/create-blog', element: <CreateBlogPage /> },
+      { path: 'blog/edit-blog/:slug', element: <EditBlogPage /> },
+
       {
-        path: 'results-management/create-result/',
+        path: 'results-management/create-result',
         element: (
           <RequirePrincipalAuth>
             <CreateResultFormPage />
           </RequirePrincipalAuth>
         ),
       },
-      {
-        path: 'results-management/',
-        element: (
-          <RequireAuth>
-            <EditResultPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'results-management/edit-result/:id',
-        element: (
-          <RequireAuth>
-            <ResultEditView />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'course-management',
-        element: (
-          <RequireAuth>
-            <ClassCourseAssignmentsPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'course-management/create-course',
-        element: (
-          <RequireAuth>
-            <CourseManagementPage />
-          </RequireAuth>
-        ),
-      },
 
-      // Edit Forms
-      {
-        path: 'reservations/edit/:id',
-        element: <EditReservation />,
-      },
-      {
-        path: 'tickets/edit/:id',
-        element: <TicketEditpage />,
-      },
-      {
-        path: 'complaints/edit/:id',
-        element: <EditComplain />,
-      },
-      
-      // Billing
-      {
-        path: 'billing/items',
-        element: <BillingItems />,
-      },
-      {
-        path: 'billing/bills',
-        element: <StudentBills />,
-      },
-      {
-        path: 'billing/templates',
-        element: <BillingTemplates />,
-      },
-      {
-        path: 'billing/create-student-bill',
-        element: <CreateStudentBill />,
-      },
-      {
-        path: 'billing/bills/:id',
-        element: <StudentBillDetail />,
-      },
+      { path: 'results-management', element: <EditResultPage /> },
+      { path: 'results-management/edit-result/:id', element: <ResultEditView /> },
 
-      // Receipt Request
-      {
-        path: 'receipt-request',
-        element: (
-          <RequireAuth>
-            <RecieptRequestPage />
-          </RequireAuth>
-        ),
-      },
+      { path: 'course-management', element: <ClassCourseAssignmentsPage /> },
+      { path: 'course-management/create-course', element: <CourseManagementPage /> },
+
+      { path: 'reservations/edit/:id', element: <EditReservation /> },
+      { path: 'tickets/edit/:id', element: <TicketEditpage /> },
+      { path: 'complaints/edit/:id', element: <EditComplain /> },
+
+      { path: 'billing/items', element: <BillingItems /> },
+      { path: 'billing/bills', element: <StudentBills /> },
+      { path: 'billing/templates', element: <BillingTemplates /> },
+      { path: 'billing/create-student-bill', element: <CreateStudentBill /> },
+      { path: 'billing/bills/:id', element: <StudentBillDetail /> },
+
+      { path: 'receipt-request', element: <RecieptRequestPage /> },
     ],
   },
 ]);

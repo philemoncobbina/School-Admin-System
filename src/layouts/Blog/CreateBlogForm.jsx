@@ -303,7 +303,7 @@ const CreateBlogPost = () => {
       const token = localStorage.getItem('access_token');
       
       // Make the API call directly with proper headers
-      const response = await fetch('http://localhost:8000/api/posts/', {
+      const response = await fetch('https://api.cobbina.uk/api/posts/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

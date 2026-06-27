@@ -49,7 +49,7 @@ export interface JobPostLog {
     action_type: 'CREATE' | 'UPDATE' | 'STATUS_CHANGE' | 'PUBLISH' | 'SCHEDULE';
 }
 
-const API_URL = 'http://localhost:8000/api/api';
+const API_URL = 'https://api.cobbina.uk/api/api';
 
 // Configure axios instance with basic headers
 const axiosInstance = axios.create({

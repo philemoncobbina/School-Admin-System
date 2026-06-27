@@ -1,7 +1,7 @@
 // services/blogApi.js
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'https://api.cobbina.uk/api';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,

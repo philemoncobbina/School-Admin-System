@@ -14,7 +14,7 @@ class UserService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = '/api'; // Replace with your backend URL
+    this.baseUrl = 'https://api.cobbina.uk/api'; // Replace with your backend URL
   }
 
   // Method to fetch user details

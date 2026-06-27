@@ -1,7 +1,7 @@
 // src/services/billingService.ts
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api"; // Adjust if different
+const API_URL = "https://api.cobbina.uk/api"; // Adjust if different
 
 // Helper function to get authorization headers
 const getAuthHeaders = (): { Authorization: string } => {
