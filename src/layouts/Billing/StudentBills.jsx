@@ -1,11 +1,11 @@
 // src/components/StudentBills.jsx
 import React, { useEffect, useState } from "react";
-import { fetchBills, deleteBill } from "../../services/billingService";
+import { fetchBills, deleteBill, bulkPublishBills } from "../../services/billingService";
 import { Link } from "react-router-dom";
 import {
   Search, MoreHorizontal, Trash2, PlusCircle, RefreshCw, FileEdit,
   Filter, ChevronDown, ChevronUp, BookOpen, Clock, GraduationCap,
-  Calendar, X
+  Calendar, X, Send, AlertCircle, CheckCircle2, Info, ChevronRight
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from 'date-fns';
@@ -27,6 +27,10 @@ const StudentBills = () => {
   const [deleteLoading, setDeleteLoading] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Bulk publish state
+  const [bulkPublishing, setBulkPublishing] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null); // { type: 'success' | 'error', data: ... }
+
   const STATUS_CHOICES = [
     { value: "DRAFT", label: "Draft" },
     { value: "SCHEDULED", label: "Scheduled" },
@@ -46,12 +50,24 @@ const StudentBills = () => {
     return values.sort();
   };
 
+  // Check if all three bulk-publish fields are selected
+  const bulkPublishReady =
+    filters.academicYear !== "all" &&
+    filters.class !== "all" &&
+    filters.term !== "all";
+
+  // Count how many of the three fields are filled
+  const bulkFieldsSelected = [filters.academicYear, filters.class, filters.term]
+    .filter(v => v !== "all").length;
+
   useEffect(() => {
     loadBills();
   }, []);
 
   useEffect(() => {
     filterAndSortBills();
+    // Clear bulk result when filters change
+    setBulkResult(null);
   }, [bills, filters, sort]);
 
   const loadBills = async () => {
@@ -69,7 +85,7 @@ const StudentBills = () => {
 
   const filterAndSortBills = () => {
     let filtered = bills.filter(bill => {
-      const searchMatch = !filters.search || 
+      const searchMatch = !filters.search ||
         bill.bill_number?.toLowerCase().includes(filters.search.toLowerCase()) ||
         `${bill.first_name} ${bill.last_name}`.toLowerCase().includes(filters.search.toLowerCase()) ||
         bill.billing_template?.academic_year?.toLowerCase().includes(filters.search.toLowerCase()) ||
@@ -111,8 +127,8 @@ const StudentBills = () => {
           bValue = b[sort.field] || "";
       }
 
-      return sort.order === "asc" ? 
-        (aValue > bValue ? 1 : -1) : 
+      return sort.order === "asc" ?
+        (aValue > bValue ? 1 : -1) :
         (aValue < bValue ? 1 : -1);
     });
 
@@ -132,6 +148,7 @@ const StudentBills = () => {
       class: "all",
       term: "all"
     });
+    setBulkResult(null);
   };
 
   const handleSort = (field) => {
@@ -159,6 +176,37 @@ const StudentBills = () => {
     }
   };
 
+  const handleBulkPublish = async () => {
+    const payload = {
+      class_name: filters.class,
+      term: filters.term,
+      academic_year: filters.academicYear,
+    };
+
+    const confirmMsg =
+      `Bulk publish all DRAFT and SCHEDULED bills for:\n\n` +
+      `  Class: ${payload.class_name}\n` +
+      `  Term: ${payload.term}\n` +
+      `  Academic Year: ${payload.academic_year}\n\n` +
+      `This will send PDF, email, and SMS notifications to each student. Continue?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setBulkPublishing(true);
+      setBulkResult(null);
+      const res = await bulkPublishBills(payload);
+      setBulkResult({ type: 'success', data: res.data });
+      await loadBills(); // Refresh list so statuses update
+    } catch (error) {
+      console.error("Bulk publish error:", error);
+      const errData = error?.response?.data;
+      setBulkResult({ type: 'error', data: errData });
+    } finally {
+      setBulkPublishing(false);
+    }
+  };
+
   const getBadge = (value, type) => {
     const styles = {
       DRAFT: "bg-gray-100 text-gray-800",
@@ -182,13 +230,13 @@ const StudentBills = () => {
 
   const SortIcon = ({ field }) => {
     if (sort.field !== field) return null;
-    return sort.order === "asc" ? 
-      <ChevronUp className="h-4 w-4" /> : 
+    return sort.order === "asc" ?
+      <ChevronUp className="h-4 w-4" /> :
       <ChevronDown className="h-4 w-4" />;
   };
 
   const hasActiveFilters = () => {
-    return Object.entries(filters).some(([key, value]) => 
+    return Object.entries(filters).some(([key, value]) =>
       key === 'search' ? value : value !== "all"
     );
   };
@@ -222,7 +270,7 @@ const StudentBills = () => {
   );
 
   const TableHeader = ({ field, children, className = "" }) => (
-    <th 
+    <th
       className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors ${className}`}
       onClick={() => handleSort(field)}
     >
@@ -232,6 +280,118 @@ const StudentBills = () => {
       </div>
     </th>
   );
+
+  // ── Bulk result banners ──────────────────────────────────────────────────────
+
+  const BulkSuccessBanner = ({ data }) => (
+    <div className="mx-6 mb-4 rounded-lg border border-green-200 bg-green-50 p-4">
+      <div className="flex items-start space-x-3">
+        <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-green-800">{data.message}</p>
+          <div className="mt-2 flex flex-wrap gap-4 text-xs text-green-700">
+            <span>✓ {data.published_count} bill{data.published_count !== 1 ? 's' : ''} published</span>
+            {data.already_published_count > 0 && (
+              <span>· {data.already_published_count} already published (skipped)</span>
+            )}
+            <span>· {data.total_students_in_class} student{data.total_students_in_class !== 1 ? 's' : ''} in class</span>
+          </div>
+        </div>
+        <button
+          onClick={() => setBulkResult(null)}
+          className="text-green-500 hover:text-green-700 transition-colors flex-shrink-0"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const BulkErrorBanner = ({ data }) => {
+    if (!data) {
+      return (
+        <div className="mx-6 mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-red-800">Bulk publish failed. Please try again.</p>
+            <button onClick={() => setBulkResult(null)} className="text-red-400 hover:text-red-600 ml-auto">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const errors = data?.errors || {};
+    const missingBills = errors?.missing_bills;
+    const billingTemplate = errors?.billing_template;
+    const students = errors?.students;
+    const otherErrors = Object.entries(errors).filter(
+      ([key]) => !['missing_bills', 'billing_template', 'students'].includes(key)
+    );
+
+    return (
+      <div className="mx-6 mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
+        <div className="flex items-start space-x-3">
+          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-800">
+              {data?.message || "Bulk publishing failed validation."}
+            </p>
+
+            {/* Missing bills block */}
+            {missingBills && (
+              <div className="mt-3">
+                <p className="text-sm text-red-700">{missingBills.message}</p>
+                <p className="text-xs text-red-600 mt-1 font-medium">
+                  {missingBills.total_missing} student{missingBills.total_missing !== 1 ? 's' : ''} without a bill:
+                </p>
+                <ul className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                  {missingBills.students.map((s) => (
+                    <li
+                      key={s.id}
+                      className="flex items-center space-x-2 text-xs text-red-700 bg-red-100 rounded px-2 py-1"
+                    >
+                      <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                      <span className="font-medium">{s.name}</span>
+                      <span className="text-red-500">·</span>
+                      <span>{s.email}</span>
+                      <span className="text-red-500">·</span>
+                      <span>{s.class_name}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-red-600 mt-2">
+                  Create bills for these students first, then try bulk publishing again.
+                </p>
+              </div>
+            )}
+
+            {/* Template / students / other simple errors */}
+            {billingTemplate && (
+              <p className="text-sm text-red-700 mt-2">{billingTemplate}</p>
+            )}
+            {students && (
+              <p className="text-sm text-red-700 mt-2">{students}</p>
+            )}
+            {otherErrors.map(([key, val]) => (
+              <p key={key} className="text-sm text-red-700 mt-2">
+                <span className="font-medium capitalize">{key.replace(/_/g, ' ')}:</span>{' '}
+                {typeof val === 'string' ? val : JSON.stringify(val)}
+              </p>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setBulkResult(null)}
+            className="text-red-400 hover:text-red-600 transition-colors flex-shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -290,7 +450,7 @@ const StudentBills = () => {
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
-              
+
               <Button
                 variant="outline"
                 onClick={() => setShowFilters(!showFilters)}
@@ -321,43 +481,96 @@ const StudentBills = () => {
 
             {/* Filter Controls */}
             {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
-                <FilterSelect
-                  label="Status"
-                  value={filters.status}
-                  onChange={(value) => updateFilter('status', value)}
-                  options={STATUS_CHOICES}
-                />
+              <div className="flex flex-col space-y-4 pt-4 border-t border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FilterSelect
+                    label="Status"
+                    value={filters.status}
+                    onChange={(value) => updateFilter('status', value)}
+                    options={STATUS_CHOICES}
+                  />
 
-                <FilterSelect
-                  label="Payment Status"
-                  value={filters.paymentStatus}
-                  onChange={(value) => updateFilter('paymentStatus', value)}
-                  options={PAYMENT_STATUS_CHOICES}
-                />
+                  <FilterSelect
+                    label="Payment Status"
+                    value={filters.paymentStatus}
+                    onChange={(value) => updateFilter('paymentStatus', value)}
+                    options={PAYMENT_STATUS_CHOICES}
+                  />
 
-                <FilterSelect
-                  label="Academic Year"
-                  value={filters.academicYear}
-                  onChange={(value) => updateFilter('academicYear', value)}
-                  options={getUniqueValues('academic_year')}
-                  icon={Calendar}
-                />
+                  <FilterSelect
+                    label="Academic Year"
+                    value={filters.academicYear}
+                    onChange={(value) => updateFilter('academicYear', value)}
+                    options={getUniqueValues('academic_year')}
+                    icon={Calendar}
+                  />
 
-                <FilterSelect
-                  label="Class"
-                  value={filters.class}
-                  onChange={(value) => updateFilter('class', value)}
-                  options={getUniqueValues('class_name')}
-                  icon={GraduationCap}
-                />
+                  <FilterSelect
+                    label="Class"
+                    value={filters.class}
+                    onChange={(value) => updateFilter('class', value)}
+                    options={getUniqueValues('class_name')}
+                    icon={GraduationCap}
+                  />
 
-                <FilterSelect
-                  label="Term"
-                  value={filters.term}
-                  onChange={(value) => updateFilter('term', value)}
-                  options={getUniqueValues('term')}
-                />
+                  <FilterSelect
+                    label="Term"
+                    value={filters.term}
+                    onChange={(value) => updateFilter('term', value)}
+                    options={getUniqueValues('term')}
+                  />
+                </div>
+
+                {/* ── Bulk Publish hint + button ─────────────────────────────── */}
+                {!bulkPublishReady && bulkFieldsSelected > 0 && (
+                  <div className="flex items-center space-x-2 text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-md px-3 py-2">
+                    <Info className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span>
+                      Select{' '}
+                      {[
+                        filters.academicYear === "all" && "Academic Year",
+                        filters.class === "all" && "Class",
+                        filters.term === "all" && "Term",
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}{' '}
+                      to enable Bulk Publish.
+                    </span>
+                  </div>
+                )}
+
+                {bulkPublishReady && (
+                  <div className="flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-md px-4 py-3">
+                    <div className="flex items-center space-x-2 text-sm text-indigo-700">
+                      <Info className="h-4 w-4 flex-shrink-0" />
+                      <span>
+                        Ready to bulk publish all DRAFT &amp; SCHEDULED bills for{' '}
+                        <span className="font-semibold">{filters.class}</span>,{' '}
+                        <span className="font-semibold">{filters.term}</span>,{' '}
+                        <span className="font-semibold">{filters.academicYear}</span>.
+                        PDFs, emails, and SMS will be sent to each student.
+                      </span>
+                    </div>
+                    <Button
+                      onClick={handleBulkPublish}
+                      disabled={bulkPublishing}
+                      size="sm"
+                      className="ml-4 flex-shrink-0 flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      {bulkPublishing ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          <span>Publishing…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4" />
+                          <span>Bulk Publish</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -369,6 +582,14 @@ const StudentBills = () => {
             )}
           </div>
         </div>
+
+        {/* ── Bulk publish result banners ── */}
+        {bulkResult?.type === 'success' && (
+          <BulkSuccessBanner data={bulkResult.data} />
+        )}
+        {bulkResult?.type === 'error' && (
+          <BulkErrorBanner data={bulkResult.data} />
+        )}
 
         {/* Table */}
         <div className="overflow-x-auto">
@@ -445,9 +666,9 @@ const StudentBills = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        GHS {parseFloat(bill.total_amount_due).toLocaleString('en-US', { 
-                          minimumFractionDigits: 2, 
-                          maximumFractionDigits: 2 
+                        GHS {parseFloat(bill.total_amount_due).toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
                         })}
                       </div>
                     </td>
