@@ -2,7 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchAllUsers, blockUser, unblockUser, editUser, deleteUser, activateUser } from '../../Services/AdminUserService';
+import {
+  fetchAllUsers, blockUser, unblockUser, editUser, deleteUser, activateUser,
+  fetchLogsForUser,
+} from '../../Services/AdminUserService';
 import EditUserModal from './EditUserModal';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
@@ -12,6 +15,7 @@ import {
   ChevronDown, ChevronUp, Clock, User, Shield, ShieldCheck,
   UserCheck, PlusCircle, UserX, Plus, Trash, Star,
   Phone, MapPin, CreditCard, X, ChevronRight, AlertCircle,
+  History, ArrowRight, Loader2, Inbox,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
@@ -38,6 +42,20 @@ const EMPTY_GUARDIAN = () => ({
   id_type: 'national_id', id_number: '',
   is_primary_contact: false,
 });
+
+// Badge styling for each audit-log action, reused in the logs modal.
+const ACTION_BADGE = {
+  create:            { cls: 'bg-green-50 text-green-700 border-green-200' },
+  update:            { cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+  delete:            { cls: 'bg-red-50 text-red-700 border-red-200' },
+  block:             { cls: 'bg-red-50 text-red-700 border-red-200' },
+  unblock:           { cls: 'bg-green-50 text-green-700 border-green-200' },
+  activate:          { cls: 'bg-green-50 text-green-700 border-green-200' },
+  deactivate:        { cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+  guardian_create:   { cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+  guardian_update:   { cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+  guardian_delete:   { cls: 'bg-red-50 text-red-700 border-red-200' },
+};
 
 // ── Small reusable field renderers ─────────────────────────────────────────
 
@@ -336,6 +354,211 @@ const EditStudentModal = ({ formData, setFormData, guardians, setGuardians, onSa
   );
 };
 
+// ── UserLogsModal ────────────────────────────────────────────────────────
+//
+// Shows the audit trail (UserChangeLog entries) for a single user. Fetched
+// lazily on open via fetchLogsForUser(email) from AdminUserService.
+//
+// NOTE: field_name / previous_value / new_value come from the backend as raw
+// internal identifiers (e.g. "last_name", "account_status", or a serialized
+// dict of model attributes). Those are correct for the audit trail itself,
+// but should never be shown verbatim to an admin in the UI — this section
+// translates them into plain language before anything is rendered.
+
+// Friendly labels for known internal field names (CustomUser + ParentGuardian
+// attributes, plus the synthetic "account_status" field used for block/unblock).
+const FIELD_LABELS = {
+  account: 'Account',
+  account_status: 'Account Status',
+  is_active: 'Active',
+  is_blocked: 'Blocked',
+  first_name: 'First Name',
+  middle_name: 'Middle Name',
+  last_name: 'Last Name',
+  suffix: 'Suffix',
+  email: 'Email',
+  role: 'Role',
+  index_number: 'Index Number',
+  class_name: 'Class',
+  username: 'Username',
+  relationship: 'Relationship',
+  primary_phone: 'Primary Phone',
+  secondary_phone: 'Secondary Phone',
+  street_address: 'Street Address',
+  city: 'City',
+  state_region: 'Region',
+  postal_code: 'Postal Code',
+  id_type: 'ID Type',
+  id_number: 'ID Number',
+  is_primary_contact: 'Primary Contact',
+};
+
+// Turns a raw snake_case identifier into Title Case as a fallback for
+// anything not in FIELD_LABELS above.
+const titleCaseField = (str) =>
+  String(str).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Resolves a raw field_name (including nested guardian notation like
+// "guardian[2].primary_phone") into an admin-friendly label. Never returns
+// the raw internal identifier unless it's genuinely unrecognized.
+const humanizeFieldName = (field) => {
+  if (!field) return '';
+
+  const guardianMatch = field.match(/^guardian\[(\d+)\]\.(.+)$/i);
+  if (guardianMatch) {
+    const position = parseInt(guardianMatch[1], 10) + 1;
+    const inner = guardianMatch[2];
+    return `Guardian ${position} — ${FIELD_LABELS[inner] || titleCaseField(inner)}`;
+  }
+
+  return FIELD_LABELS[field] || titleCaseField(field);
+};
+
+// Formats a logged value for display. Handles:
+//  - plain scalars (strings/numbers)
+//  - booleans -> "Yes" / "No"
+//  - JSON-serialized objects/arrays (as stored in previous_value/new_value)
+//    by recursively humanizing their keys instead of dumping raw JSON.
+const formatLogValue = (val) => {
+  if (val === null || val === undefined || val === '') return '—';
+
+  if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    ) {
+      try { return formatLogValue(JSON.parse(trimmed)); } catch { /* fall through */ }
+    }
+    return val;
+  }
+
+  if (Array.isArray(val)) {
+    return val.length ? val.map((v) => formatLogValue(v)).join(', ') : '—';
+  }
+
+  if (typeof val === 'object') {
+    const entries = Object.entries(val);
+    if (!entries.length) return '—';
+    return entries
+      .map(([k, v]) => `${humanizeFieldName(k)}: ${formatLogValue(v)}`)
+      .join(', ');
+  }
+
+  return String(val);
+};
+
+const LogActionBadge = ({ action, actionDisplay }) => {
+  const cfg = ACTION_BADGE[action] || { cls: 'bg-gray-50 text-gray-700 border-gray-200' };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.cls}`}>
+      {actionDisplay || action}
+    </span>
+  );
+};
+
+const LogEntry = ({ log }) => {
+  const changedAt = log.changed_at
+    ? format(new Date(log.changed_at), 'MMM d, yyyy, h:mm a')
+    : '';
+
+  const hasDiff =
+    (log.previous_value !== null && log.previous_value !== undefined && log.previous_value !== '') ||
+    (log.new_value !== null && log.new_value !== undefined && log.new_value !== '');
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50/40 px-4 py-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <LogActionBadge action={log.action} actionDisplay={log.action_display} />
+          {log.field_name && (
+            <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+              {humanizeFieldName(log.field_name)}
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-gray-400 whitespace-nowrap">{changedAt}</span>
+      </div>
+
+      {hasDiff && (
+        <div className="mt-2 flex items-center gap-2 text-xs">
+          <span className="px-2 py-1 rounded-lg bg-red-50 text-red-700 border border-red-100 break-all">
+            {formatLogValue(log.previous_value)}
+          </span>
+          <ArrowRight size={12} className="text-gray-400 flex-shrink-0" />
+          <span className="px-2 py-1 rounded-lg bg-green-50 text-green-700 border border-green-100 break-all">
+            {formatLogValue(log.new_value)}
+          </span>
+        </div>
+      )}
+
+      <p className="mt-2 text-xs text-gray-500">
+        By <span className="font-medium text-gray-700">{log.changed_by_email || 'System'}</span>
+      </p>
+    </div>
+  );
+};
+
+const UserLogsModal = ({ user, logs, isLoading, error, onClose, onRetry }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col">
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <History size={18} className="text-purple-500" /> Activity Log
+          </h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {user?.first_name} {user?.last_name} · {user?.email}
+          </p>
+        </div>
+        <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+          <X size={18} />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="overflow-y-auto flex-1 px-6 py-5">
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-14 text-gray-400">
+            <Loader2 size={28} className="animate-spin mb-3" />
+            <p className="text-sm">Loading activity...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-14 text-center">
+            <AlertCircle size={28} className="text-red-400 mb-3" />
+            <p className="text-sm text-red-600 mb-4">{error}</p>
+            <button onClick={onRetry}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+              <RefreshCw className="w-4 h-4 mr-2" /> Retry
+            </button>
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-14 text-center text-gray-400">
+            <Inbox size={28} className="mb-3" />
+            <p className="text-sm">No activity recorded for this user yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {logs.map((log) => <LogEntry key={log.id} log={log} />)}
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0">
+        <button onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 // ── UserManagement ─────────────────────────────────────────────────────────
 
 const UserManagement = () => {
@@ -355,6 +578,13 @@ const UserManagement = () => {
   // Separate error state scoped to the edit modal so the message appears inline
   const [saveError,     setSaveError]     = useState(null);
   const [sortConfig,    setSortConfig]    = useState({ key: null, direction: null });
+
+  // ── Activity log modal state ─────────────────────────────────────────────
+  const [logsModalOpen, setLogsModalOpen] = useState(false);
+  const [logsUser,      setLogsUser]      = useState(null);
+  const [logs,          setLogs]          = useState([]);
+  const [logsLoading,   setLogsLoading]   = useState(false);
+  const [logsError,     setLogsError]     = useState(null);
 
   useEffect(() => { loadUsers(); }, []);
 
@@ -488,6 +718,37 @@ const UserManagement = () => {
     }
   };
 
+  // ── Activity log handlers ────────────────────────────────────────────────
+
+  const loadLogsFor = async (user) => {
+    if (!user?.email) return;
+    setLogsLoading(true);
+    setLogsError(null);
+    try {
+      const { data } = await fetchLogsForUser(user.email);
+      setLogs(Array.isArray(data) ? data : (data?.results || []));
+    } catch {
+      setLogsError('Failed to load activity log. Please try again later.');
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const handleViewLogs = (user) => {
+    setLogsUser(user);
+    setLogs([]);
+    setLogsError(null);
+    setLogsModalOpen(true);
+    loadLogsFor(user);
+  };
+
+  const handleCloseLogs = () => {
+    setLogsModalOpen(false);
+    setLogsUser(null);
+    setLogs([]);
+    setLogsError(null);
+  };
+
   // ── Utilities ────────────────────────────────────────────────────────────
 
   const formatDate     = (d) => d ? format(new Date(d), 'MMM d, yyyy')          : '';
@@ -557,7 +818,7 @@ const UserManagement = () => {
           <MoreHorizontal className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-36 p-0 bg-white" align="end">
+      <PopoverContent className="w-40 p-0 bg-white" align="end">
         <div className="py-1">
           {user.is_blocked ? (
             <ActionBtn onClick={() => handleUnblockUser(user.id)} icon={UserCheck} label="Unblock" color="green" />
@@ -568,6 +829,7 @@ const UserManagement = () => {
             <ActionBtn onClick={() => handleActivateUser(user.id)} icon={UserCheck} label="Activate" color="blue" />
           )}
           <ActionBtn onClick={() => handleEditUser(user)} icon={Edit2} label="Edit" color="gray" />
+          <ActionBtn onClick={() => handleViewLogs(user)} icon={History} label="View Logs" color="gray" />
           <ActionBtn
             onClick={() => { if (window.confirm('Delete this user? This cannot be undone.')) handleDeleteUser(user.id); }}
             icon={Trash2} label="Delete" color="red"
@@ -755,6 +1017,17 @@ const UserManagement = () => {
             saveError={saveError}
           />
         )
+      )}
+
+      {logsModalOpen && (
+        <UserLogsModal
+          user={logsUser}
+          logs={logs}
+          isLoading={logsLoading}
+          error={logsError}
+          onClose={handleCloseLogs}
+          onRetry={() => loadLogsFor(logsUser)}
+        />
       )}
     </div>
   );

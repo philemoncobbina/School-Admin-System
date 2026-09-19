@@ -1,50 +1,62 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import axios from 'axios';
 import { isLoggedIn } from './Login';
 
 const RequirePrincipalAuth = ({ children }) => {
-  const [loading, setLoading] = useState(true);
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [authorized, setAuthorized] = useState(false);
+  const [authState, setAuthState] = useState({
+    loading: true,
+    loggedIn: false,
+    authorized: false,
+  });
 
   useEffect(() => {
+    let active = true;
+
     const checkAuthStatus = async () => {
       try {
-        const authStatus = await isLoggedIn(); // Check if the user is logged in
-        setLoggedIn(authStatus.loggedIn);
+        const authStatus = await isLoggedIn();
 
-        if (authStatus.loggedIn) {
-          const response = await axios.get('https://api.cobbina.uk/api/user-detail-auth/', {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-            },
-          });
-
-          if (response.data.role === 'principal') {
-            setAuthorized(true);
-          }
+        if (!active) {
+          return;
         }
+
+        setAuthState({
+          loading: false,
+          loggedIn: Boolean(authStatus.loggedIn),
+          authorized:
+            Boolean(authStatus.loggedIn) &&
+            authStatus.user?.role === 'principal',
+        });
       } catch (error) {
         console.error('Authorization failed:', error);
-      } finally {
-        setLoading(false);
+
+        if (active) {
+          setAuthState({
+            loading: false,
+            loggedIn: false,
+            authorized: false,
+          });
+        }
       }
     };
 
     checkAuthStatus();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  if (loading) {
+  if (authState.loading) {
     return <div>Loading...</div>;
   }
 
-  if (!loggedIn) {
-    return <Navigate to="/login" />;
+  if (!authState.loggedIn) {
+    return <Navigate to="/login" replace />;
   }
 
-  if (!authorized) {
-    return <Navigate to="/unauthorized" />;
+  if (!authState.authorized) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return children;

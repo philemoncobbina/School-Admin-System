@@ -57,6 +57,11 @@ import EditBlogPage from './Pages/EditBlogPage';
 import RecieptRequestPage from './Pages/RecieptRequestPage';
 import EditReciept from './Pages/EditReciept';
 
+// Attendance
+import AttendancePage from './Pages/AttendancePage';
+import SemesterSetupPage from './Pages/SemesterSetupPage';
+import AttendanceSummaryPage from './Pages/AttendanceSummaryPage';
+
 const router = createBrowserRouter([
 
   // Public
@@ -157,6 +162,9 @@ const router = createBrowserRouter([
       { path: 'billing/bills/:id', element: <StudentBillDetail /> },
 
       { path: 'receipt-request', element: <RecieptRequestPage /> },
+      { path: 'attendance', element: <AttendancePage /> },
+      { path: 'semester-setup', element: <SemesterSetupPage /> },
+      { path: 'attendance-summary', element: <AttendanceSummaryPage /> },
     ],
   },
 ]);
