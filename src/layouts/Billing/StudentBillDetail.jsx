@@ -768,7 +768,7 @@ const StudentBillDetail = () => {
                           <AlertDialogTrigger asChild>
                             <Button variant="destructive" size="sm"><Trash2 className="w-4 h-4" /></Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent className="!bg-white">
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete Receipt</AlertDialogTitle>
                               <AlertDialogDescription>Delete receipt "{receipt.receipt_number}"?</AlertDialogDescription>

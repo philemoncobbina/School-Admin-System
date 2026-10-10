@@ -37,7 +37,14 @@ export interface StudentUser {
   first_name: string;
   last_name: string;
   index_number: string;
+  // A regular class ('Class 4', 'JHS 2', ...) or a status ('Graduated' | 'Stopped')
   class_name: string;
+  // Required when class_name === 'Graduated'
+  graduation_year?: number | null;
+  // Required when class_name === 'Stopped'
+  stopped_class?: string | null;
+  stop_reason?: string;
+  stop_year?: number | null;
   role?: string;
   guardians?: ParentGuardian[];
 }
@@ -60,8 +67,18 @@ export interface BatchCreateStudentResponse {
   errors: any[];
 }
 
+// ── Student status constants (must match CustomUser.GRADUATED / STOPPED) ───
+
+export const GRADUATED_STATUS = 'Graduated';
+export const STOPPED_STATUS = 'Stopped';
+
+// Earliest year accepted for graduation / stopping year (matches backend MIN_STATUS_YEAR)
+export const MIN_STATUS_YEAR = 1990;
+
 // ── Shared option lists ────────────────────────────────────────────────────
 
+// Regular classes only. Use this anywhere a student is being placed in a class
+// (sign-up, batch create, billing, attendance, book lists, "class stopped at", ...).
 export const CLASS_OPTIONS = [
   { value: 'Creche',   label: 'Creche'   },
   { value: 'Nursery',  label: 'Nursery'  },
@@ -77,6 +94,16 @@ export const CLASS_OPTIONS = [
   { value: 'JHS 2',    label: 'JHS 2'    },
   { value: 'JHS 3',    label: 'JHS 3'    },
 ];
+
+// Non-class statuses a student can have.
+export const STATUS_OPTIONS = [
+  { value: GRADUATED_STATUS, label: 'Graduated'      },
+  { value: STOPPED_STATUS,   label: 'Stopped School' },
+];
+
+// Regular classes + statuses. Use this only where a student's *current standing*
+// is edited or filtered (e.g. User Management).
+export const STUDENT_CLASS_OPTIONS = [...CLASS_OPTIONS, ...STATUS_OPTIONS];
 
 export const RELATIONSHIP_OPTIONS: { value: RelationshipType; label: string }[] = [
   { value: 'father',      label: 'Father'      },
@@ -147,7 +174,8 @@ const studentAuthService = {
 
   isStudent: (): boolean => studentAuthService.getCurrentUser()?.role === 'student',
 
-  // Kept for backward-compat — components can also import CLASS_OPTIONS directly
+  // Kept for backward-compat — components can also import CLASS_OPTIONS directly.
+  // Returns regular classes only (no Graduated / Stopped).
   getClassOptions: () => CLASS_OPTIONS,
 
   getProtectedData: (): Promise<any> =>

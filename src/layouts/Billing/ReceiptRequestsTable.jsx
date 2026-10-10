@@ -476,8 +476,8 @@ export default function ReceiptRequestsTable() {
         </div>
 
         {/* ── Single Delete Confirm Modal ──────────────────────────────────────── */}
-        <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-          <AlertDialogContent>
+        <AlertDialog  open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+          <AlertDialogContent className="!bg-white">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete this request?</AlertDialogTitle>
               <AlertDialogDescription>

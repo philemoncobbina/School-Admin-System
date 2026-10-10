@@ -3,7 +3,7 @@
 import axios, { AxiosError } from 'axios';
 import { resultsCache, CACHE_TTL, cacheKeys } from './resultsCache';
 
-const API_URL = 'http://127.0.0.1:8000/api';
+const API_URL = 'https://api.cobbina.uk/api';
 
 const getAuthHeaders = () => {
   const accessToken = localStorage.getItem('access_token');

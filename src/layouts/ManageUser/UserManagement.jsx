@@ -9,13 +9,16 @@ import {
 import EditUserModal from './EditUserModal';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
-import { CLASS_OPTIONS, RELATIONSHIP_OPTIONS, ID_TYPE_OPTIONS } from '../../Services/studentAuthService';
+import {
+  CLASS_OPTIONS, STUDENT_CLASS_OPTIONS, RELATIONSHIP_OPTIONS, ID_TYPE_OPTIONS,
+  GRADUATED_STATUS, STOPPED_STATUS, MIN_STATUS_YEAR,
+} from '../../Services/studentAuthService';
 import {
   Search, MoreHorizontal, Edit2, Trash2, RefreshCw, Filter,
   ChevronDown, ChevronUp, Clock, User, Shield, ShieldCheck,
   UserCheck, PlusCircle, UserX, Plus, Trash, Star,
   Phone, MapPin, CreditCard, X, ChevronRight, AlertCircle,
-  History, ArrowRight, Loader2, Inbox,
+  History, ArrowRight, Loader2, Inbox, GraduationCap, UserMinus,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
@@ -33,6 +36,9 @@ const ROLE_OPTIONS = [
   { value: 'student',   label: 'Student'   },
 ];
 
+// Fields tied to the Graduated / Stopped statuses of `class_name`
+const STATUS_FIELD_KEYS = ['graduation_year', 'stopped_class', 'stop_reason', 'stop_year'];
+
 const EMPTY_GUARDIAN = () => ({
   id: null,
   first_name: '', middle_name: '', last_name: '', suffix: '',
@@ -42,6 +48,39 @@ const EMPTY_GUARDIAN = () => ({
   id_type: 'national_id', id_number: '',
   is_primary_contact: false,
 });
+
+// Client-side mirror of the backend rules (CustomUser.resolve_status_fields):
+//   Graduated -> graduation_year required
+//   Stopped   -> stopped_class, stop_reason and stop_year required
+// Returns an object of { fieldName: message }; empty when everything is valid.
+const validateStatusFields = (data) => {
+  const errors = {};
+  const currentYear = new Date().getFullYear();
+
+  if (data.class_name === GRADUATED_STATUS) {
+    const year = Number(data.graduation_year);
+    if (!data.graduation_year) {
+      errors.graduation_year = 'Year of graduation is required.';
+    } else if (!Number.isInteger(year) || year < MIN_STATUS_YEAR || year > currentYear + 1) {
+      errors.graduation_year = `Enter a year between ${MIN_STATUS_YEAR} and ${currentYear + 1}.`;
+    }
+  } else if (data.class_name === STOPPED_STATUS) {
+    if (!data.stopped_class) {
+      errors.stopped_class = 'The class the student stopped at is required.';
+    }
+    if (!String(data.stop_reason || '').trim()) {
+      errors.stop_reason = 'A reason for stopping school is required.';
+    }
+    const year = Number(data.stop_year);
+    if (!data.stop_year) {
+      errors.stop_year = 'The year the student stopped school is required.';
+    } else if (!Number.isInteger(year) || year < MIN_STATUS_YEAR || year > currentYear) {
+      errors.stop_year = `Enter a year between ${MIN_STATUS_YEAR} and ${currentYear}.`;
+    }
+  }
+
+  return errors;
+};
 
 // Badge styling for each audit-log action, reused in the logs modal.
 const ACTION_BADGE = {
@@ -209,10 +248,31 @@ const SectionTitle = ({ icon, label }) => (
 
 // ── EditStudentModal ───────────────────────────────────────────────────────
 
-const EditStudentModal = ({ formData, setFormData, guardians, setGuardians, onSave, onClose, saveError }) => {
-  const modalInputCls =
-    'w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm ' +
-    'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all';
+const EditStudentModal = ({
+  formData, setFormData, guardians, setGuardians,
+  onSave, onClose, saveError, fieldErrors, setFieldErrors,
+}) => {
+  const currentYear = new Date().getFullYear();
+
+  // Same look as before; turns red when the field has an error.
+  const inputClsFor = (hasError) =>
+    'w-full px-3 py-2.5 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all ' +
+    (hasError
+      ? 'border-red-300 focus:ring-red-400 focus:border-transparent'
+      : 'border-gray-200 focus:ring-purple-500 focus:border-transparent');
+
+  const modalInputCls = inputClsFor(false);
+
+  const clearFieldError = (name) =>
+    setFieldErrors((prev) => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+
+  const ErrorText = ({ name }) =>
+    fieldErrors[name] ? <p className="mt-1 text-xs text-red-600">{fieldErrors[name]}</p> : null;
 
   const handleGuardianChange = (index, key, value) =>
     setGuardians((prev) => prev.map((g, i) => (i === index ? { ...g, [key]: value } : g)));
@@ -232,16 +292,49 @@ const EditStudentModal = ({ formData, setFormData, guardians, setGuardians, onSa
       return next;
     });
 
-  const studentField = (name, label, type = 'text', extra = {}) => (
+  // Changing the class also resets whichever status fields no longer apply.
+  const handleClassChange = (e) => {
+    const value = e.target.value;
+    setFieldErrors({});
+    setFormData((p) => {
+      const next = { ...p, class_name: value };
+
+      if (value === GRADUATED_STATUS) {
+        next.stopped_class = '';
+        next.stop_reason = '';
+        next.stop_year = '';
+      } else if (value === STOPPED_STATUS) {
+        next.graduation_year = '';
+        // Suggest the class the student is leaving as "class stopped at".
+        if (!p.stopped_class && CLASS_OPTIONS.some((c) => c.value === p.class_name)) {
+          next.stopped_class = p.class_name;
+        }
+      } else {
+        next.graduation_year = '';
+        next.stopped_class = '';
+        next.stop_reason = '';
+        next.stop_year = '';
+      }
+      return next;
+    });
+  };
+
+  const studentField = (name, label, type = 'text', extra = {}, required = false) => (
     <div>
-      <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
+      <label className="block text-xs font-semibold text-gray-600 mb-1">
+        {label}{required && <span className="text-red-400 ml-1">*</span>}
+      </label>
       <input
         name={name} type={type}
-        value={formData[name] || ''}
-        onChange={(e) => setFormData((p) => ({ ...p, [name]: e.target.value }))}
-        className={modalInputCls}
+        value={formData[name] ?? ''}
+        onChange={(e) => {
+          setFormData((p) => ({ ...p, [name]: e.target.value }));
+          clearFieldError(name);
+        }}
+        className={inputClsFor(!!fieldErrors[name])}
         {...extra}
       />
+      <ErrorText name={name} />
     </div>
   );
 
@@ -278,17 +371,85 @@ const EditStudentModal = ({ formData, setFormData, guardians, setGuardians, onSa
               </div>
               {studentField('index_number', 'Index Number', 'text', { placeholder: 'Index number'})}
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Class</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Class / Status</label>
                 <select
                   name="class_name"
                   value={formData.class_name || ''}
-                  onChange={(e) => setFormData((p) => ({ ...p, class_name: e.target.value }))}
+                  onChange={handleClassChange}
                   className={modalInputCls}
                 >
                   <option value="">Select class</option>
-                  {CLASS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {STUDENT_CLASS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
+
+              {/* Graduated → graduation year */}
+              {formData.class_name === GRADUATED_STATUS && (
+                <div className="col-span-2 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3 space-y-3">
+                  <p className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 uppercase tracking-wider">
+                    <GraduationCap size={13} /> Graduation Details
+                  </p>
+                  {studentField(
+                    'graduation_year', 'Year of Graduation', 'number',
+                    { placeholder: String(currentYear), min: MIN_STATUS_YEAR, max: currentYear + 1 },
+                    true
+                  )}
+                </div>
+              )}
+
+              {/* Stopped → class stopped at, reason, year */}
+              {formData.class_name === STOPPED_STATUS && (
+                <div className="col-span-2 rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-3">
+                  <p className="flex items-center gap-1.5 text-xs font-bold text-amber-700 uppercase tracking-wider">
+                    <UserMinus size={13} /> Stopped School Details
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        Class Stopped At<span className="text-red-400 ml-1">*</span>
+                      </label>
+                      <select
+                        name="stopped_class"
+                        value={formData.stopped_class || ''}
+                        onChange={(e) => {
+                          setFormData((p) => ({ ...p, stopped_class: e.target.value }));
+                          clearFieldError('stopped_class');
+                        }}
+                        className={inputClsFor(!!fieldErrors.stopped_class)}
+                      >
+                        <option value="">Select class</option>
+                        {CLASS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      <ErrorText name="stopped_class" />
+                    </div>
+
+                    {studentField(
+                      'stop_year', 'Year Stopped', 'number',
+                      { placeholder: String(currentYear), min: MIN_STATUS_YEAR, max: currentYear },
+                      true
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Reason for Stopping<span className="text-red-400 ml-1">*</span>
+                    </label>
+                    <textarea
+                      name="stop_reason"
+                      rows={3}
+                      value={formData.stop_reason || ''}
+                      onChange={(e) => {
+                        setFormData((p) => ({ ...p, stop_reason: e.target.value }));
+                        clearFieldError('stop_reason');
+                      }}
+                      placeholder="e.g. Relocated to another city"
+                      className={inputClsFor(!!fieldErrors.stop_reason)}
+                    />
+                    <ErrorText name="stop_reason" />
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
@@ -380,6 +541,10 @@ const FIELD_LABELS = {
   role: 'Role',
   index_number: 'Index Number',
   class_name: 'Class',
+  graduation_year: 'Year of Graduation',
+  stopped_class: 'Class Stopped At',
+  stop_reason: 'Reason for Stopping',
+  stop_year: 'Year Stopped',
   username: 'Username',
   relationship: 'Relationship',
   primary_phone: 'Primary Phone',
@@ -568,6 +733,7 @@ const UserManagement = () => {
   const [editMode,      setEditMode]      = useState(false);
   const [formData,      setFormData]      = useState({
     first_name: '', last_name: '', email: '', role: '', index_number: '', class_name: '',
+    graduation_year: '', stopped_class: '', stop_reason: '', stop_year: '',
   });
   const [editGuardians, setEditGuardians] = useState([]);
   const [searchTerm,    setSearchTerm]    = useState('');
@@ -577,6 +743,8 @@ const UserManagement = () => {
   const [error,         setError]         = useState(null);
   // Separate error state scoped to the edit modal so the message appears inline
   const [saveError,     setSaveError]     = useState(null);
+  // Field-level errors for the Graduated / Stopped inputs ({ fieldName: message })
+  const [fieldErrors,   setFieldErrors]   = useState({});
   const [sortConfig,    setSortConfig]    = useState({ key: null, direction: null });
 
   // ── Activity log modal state ─────────────────────────────────────────────
@@ -650,13 +818,18 @@ const UserManagement = () => {
   const handleEditUser = (user) => {
     setSelectedUser(user);
     setSaveError(null);
+    setFieldErrors({});
     setFormData({
-      first_name:   user.first_name,
-      last_name:    user.last_name,
-      email:        user.email,
-      role:         user.role || '',
-      index_number: user.index_number || '',
-      class_name:   user.class_name || '',
+      first_name:      user.first_name,
+      last_name:       user.last_name,
+      email:           user.email,
+      role:            user.role || '',
+      index_number:    user.index_number || '',
+      class_name:      user.class_name || '',
+      graduation_year: user.graduation_year ?? '',
+      stopped_class:   user.stopped_class || '',
+      stop_reason:     user.stop_reason || '',
+      stop_year:       user.stop_year ?? '',
     });
     if (user.role === 'student') {
       const existing = (user.guardians || []).map((g) => ({ ...EMPTY_GUARDIAN(), ...g }));
@@ -667,6 +840,12 @@ const UserManagement = () => {
       setEditGuardians([]);
     }
     setEditMode(true);
+  };
+
+  const handleCloseEdit = () => {
+    setEditMode(false);
+    setSaveError(null);
+    setFieldErrors({});
   };
 
   /**
@@ -688,13 +867,13 @@ const UserManagement = () => {
     if (data.error)  return data.error;
     if (data.detail) return data.detail;
 
-    // Field-level validation errors — show the first one
+    // Field-level validation errors — show the first one, with a friendly field label
     if (typeof data === 'object') {
       const firstKey = Object.keys(data)[0];
       if (firstKey) {
         const val = data[firstKey];
         const msg = Array.isArray(val) ? val[0] : val;
-        return `${firstKey}: ${msg}`;
+        return `${humanizeFieldName(firstKey)}: ${msg}`;
       }
     }
 
@@ -702,17 +881,50 @@ const UserManagement = () => {
   };
 
   const handleSaveUser = async () => {
-    // Clear any previous save error each attempt
+    // Clear any previous errors each attempt
     setSaveError(null);
+    setFieldErrors({});
     try {
       const payload = { ...formData };
       if (!payload.role) delete payload.role;
-      if (payload.role === 'student') payload.guardians = editGuardians;
-      else { delete payload.index_number; delete payload.class_name; }
+
+      if (payload.role === 'student') {
+        // Validate Graduated / Stopped requirements before hitting the API
+        const errors = validateStatusFields(payload);
+        if (Object.keys(errors).length > 0) {
+          setFieldErrors(errors);
+          setSaveError('Please complete the highlighted fields before saving.');
+          return;
+        }
+
+        // Send only the status fields that apply; clear the rest
+        const isGraduated = payload.class_name === GRADUATED_STATUS;
+        const isStopped   = payload.class_name === STOPPED_STATUS;
+        payload.graduation_year = isGraduated ? Number(payload.graduation_year) : null;
+        payload.stopped_class   = isStopped ? payload.stopped_class : null;
+        payload.stop_reason     = isStopped ? String(payload.stop_reason || '').trim() : '';
+        payload.stop_year       = isStopped ? Number(payload.stop_year) : null;
+
+        payload.guardians = editGuardians;
+      } else {
+        delete payload.index_number;
+        delete payload.class_name;
+        STATUS_FIELD_KEYS.forEach((k) => delete payload[k]);
+      }
+
       await editUser(selectedUser.id, payload);
       setEditMode(false);
       loadUsers();
     } catch (err) {
+      // Show server-side field errors next to the relevant inputs
+      const data = err?.response?.data;
+      if (data && typeof data === 'object') {
+        const serverFieldErrors = {};
+        STATUS_FIELD_KEYS.forEach((k) => {
+          if (data[k]) serverFieldErrors[k] = Array.isArray(data[k]) ? data[k][0] : String(data[k]);
+        });
+        if (Object.keys(serverFieldErrors).length > 0) setFieldErrors(serverFieldErrors);
+      }
       // Surface the real server message inside the modal
       setSaveError(extractErrorMessage(err));
     }
@@ -768,7 +980,42 @@ const UserManagement = () => {
   };
 
   const getClassLabel = (val) =>
-    CLASS_OPTIONS.find((o) => o.value === val)?.label ?? val;
+    STUDENT_CLASS_OPTIONS.find((o) => o.value === val)?.label ?? val;
+
+  // Text shown under a student's role badge, with a tooltip for the details.
+  //   Regular class -> "Class 4"
+  //   Graduated     -> "Graduated 2026"
+  //   Stopped       -> "Stopped · Class 4 · 2025" (tooltip includes the reason)
+  const getClassSubtitle = (user) => {
+    if (user.class_name === GRADUATED_STATUS) {
+      return {
+        text:  user.graduation_year ? `Graduated ${user.graduation_year}` : 'Graduated',
+        title: user.graduation_year ? `Graduated in ${user.graduation_year}` : 'Graduated',
+        cls:   'text-indigo-600',
+      };
+    }
+
+    if (user.class_name === STOPPED_STATUS) {
+      const parts = ['Stopped'];
+      if (user.stopped_class) parts.push(getClassLabel(user.stopped_class));
+      if (user.stop_year)     parts.push(user.stop_year);
+
+      const details = [
+        user.stopped_class && `Left at ${getClassLabel(user.stopped_class)}`,
+        user.stop_year     && `in ${user.stop_year}`,
+        user.stop_reason   && `Reason: ${user.stop_reason}`,
+      ].filter(Boolean).join(' · ');
+
+      return {
+        text:  parts.join(' · '),
+        title: details || 'Stopped school',
+        cls:   'text-amber-600',
+      };
+    }
+
+    const label = getClassLabel(user.class_name);
+    return { text: label, title: label, cls: 'text-gray-500' };
+  };
 
   // ── Badges ───────────────────────────────────────────────────────────────
 
@@ -796,14 +1043,18 @@ const UserManagement = () => {
       student:   { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200',  Icon: User        },
     }[user.role] || { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', Icon: User };
 
+    const subtitle = user.role === 'student' && user.class_name ? getClassSubtitle(user) : null;
+
     return (
       <div className="flex flex-col">
         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
           <cfg.Icon className="w-3 h-3 mr-1" />
           {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
         </span>
-        {user.role === 'student' && user.class_name && (
-          <span className="text-xs text-gray-500 mt-1">({getClassLabel(user.class_name)})</span>
+        {subtitle && (
+          <span className={`text-xs mt-1 ${subtitle.cls}`} title={subtitle.title}>
+            ({subtitle.text})
+          </span>
         )}
       </div>
     );
@@ -938,7 +1189,7 @@ const UserManagement = () => {
                              focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none min-w-[120px]"
                 >
                   <option value="">All Classes</option>
-                  {CLASS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {STUDENT_CLASS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 h-4 w-4" />
               </div>
@@ -1007,8 +1258,9 @@ const UserManagement = () => {
           <EditStudentModal
             formData={formData} setFormData={setFormData}
             guardians={editGuardians} setGuardians={setEditGuardians}
-            onSave={handleSaveUser} onClose={() => { setEditMode(false); setSaveError(null); }}
+            onSave={handleSaveUser} onClose={handleCloseEdit}
             saveError={saveError}
+            fieldErrors={fieldErrors} setFieldErrors={setFieldErrors}
           />
         ) : (
           <EditUserModal
