@@ -1,28 +1,23 @@
-import axios from 'axios';
+// # my-project/src/Services/SignUpService.ts
 
-const API_URL = 'https://api.cobbina.uk/api/'; // Replace with your API endpoint
+import axios from 'axios';
+import { API_URL } from './http'; // adjust the path if http.ts lives elsewhere
 
 interface SignUpData {
-    email: string;
-    username: string;
-    password: string;
-    first_name: string;  // Added first_name
-    last_name: string;   // Added last_name
-    role: 'staff' | 'principal'; // Role
+  email: string;
+  username: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  role: 'staff' | 'principal';
 }
 
-// Helper function to get authorization headers
-const getAuthHeaders = (): { Authorization: string } => {
-  const accessToken = localStorage.getItem('access_token');
-  return { Authorization: `Bearer ${accessToken}` };
-};
-
-// Function to sign up a user
+// Function to sign up a user.
+// Credentials travel in HttpOnly cookies and the CSRF header is added by the
+// interceptors installed in initAuth(), so no auth headers are built here.
 export const signUpUser = async (data: SignUpData) => {
   try {
-    const response = await axios.post(`${API_URL}signup-auth/`, data, {
-      headers: getAuthHeaders(),
-    });
+    const response = await axios.post(`${API_URL}signup-auth/`, data);
     return response;
   } catch (error) {
     throw error;

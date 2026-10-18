@@ -1,6 +1,13 @@
 // studentAuthService.ts
 
 import axios, { AxiosResponse } from 'axios';
+import { API_URL } from './http'; // adjust the path if http.ts lives elsewhere
+import {
+  getStoredUser,
+  initSessionTimers,
+  isLoggedInSync,
+  logout as sharedLogout,
+} from './Login'; // adjust the path if Login.ts lives elsewhere
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -55,9 +62,8 @@ export interface StudentLoginCredentials {
   password: string;
 }
 
+// Tokens are no longer part of the response: they travel in HttpOnly cookies.
 export interface AuthResponse {
-  access_token: string;
-  refresh_token: string;
   user: StudentUser;
 }
 
@@ -124,53 +130,56 @@ export const ID_TYPE_OPTIONS: { value: IdType; label: string }[] = [
   { value: 'other',           label: 'Other'             },
 ];
 
-// ── Axios instance ─────────────────────────────────────────────────────────
+// ── Client-side session keys (must match Login.ts) ─────────────────────────
 
-const api = axios.create({
-  baseURL: 'https://api.cobbina.uk/api/',
-  headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+const USER_KEY = 'user';
+const LOGIN_TIME_KEY = 'loginTime';
+const OLD_KEYS = ['access_token', 'refresh_token', 'userData'];
 
 // ── Service ────────────────────────────────────────────────────────────────
+// Uses the global axios on purpose: the cookie, CSRF and refresh interceptors
+// installed by initAuth() live on it. An axios.create() instance would not get them.
+// Credentials travel in HttpOnly cookies, so nothing here builds auth headers.
 
 const studentAuthService = {
   createStudent: (
     studentData: StudentUser & { password: string }
-  ): Promise<AxiosResponse> => api.post('student-signup/', studentData),
+  ): Promise<AxiosResponse> => axios.post(`${API_URL}student-signup/`, studentData),
 
   batchCreateStudents: (
     studentsData: (StudentUser & { password: string })[]
   ): Promise<BatchCreateStudentResponse> =>
-    api.post('batch-create/', { students: studentsData }).then((r) => r.data),
+    axios
+      .post(`${API_URL}batch-create/`, { students: studentsData })
+      .then((r) => r.data),
 
   login: async (credentials: StudentLoginCredentials): Promise<AuthResponse> => {
-    const { data } = await api.post('login/', credentials);
-    if (data.access_token) {
-      localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
-      localStorage.setItem('userData', JSON.stringify(data.user));
+    // skipAuthRedirect: a wrong password returns 401 and the page must stay on the
+    // login form so the error can be shown, not reload to /login.
+    const { data } = await axios.post(`${API_URL}login/`, credentials, {
+      skipAuthRedirect: true,
+    });
+
+    if (data.user) {
+      // Same keys as Login.ts, so the idle/max-session timers and route guards work.
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      localStorage.setItem(LOGIN_TIME_KEY, String(Date.now()));
+      OLD_KEYS.forEach((k) => localStorage.removeItem(k));
+      initSessionTimers();
     }
-    return data;
+
+    return { user: data.user };
   },
 
-  logout: (): void => {
-    ['access_token', 'refresh_token', 'userData'].forEach((k) =>
-      localStorage.removeItem(k)
-    );
-  },
+  // Now async: it also clears the cookies on the server, then redirects to /login.
+  // Callers that ignore the return value keep working.
+  logout: (): Promise<void> => sharedLogout(),
 
-  getCurrentUser: (): StudentUser | null => {
-    const raw = localStorage.getItem('userData');
-    return raw ? JSON.parse(raw) : null;
-  },
+  getCurrentUser: (): StudentUser | null =>
+    // Login.ts types this as AuthUser, but it stores whatever the server returned.
+    getStoredUser() as unknown as StudentUser | null,
 
-  isLoggedIn: (): boolean => !!localStorage.getItem('access_token'),
+  isLoggedIn: (): boolean => isLoggedInSync(),
 
   isStudent: (): boolean => studentAuthService.getCurrentUser()?.role === 'student',
 
@@ -179,7 +188,7 @@ const studentAuthService = {
   getClassOptions: () => CLASS_OPTIONS,
 
   getProtectedData: (): Promise<any> =>
-    api.get('protected-endpoint/').then((r) => r.data),
+    axios.get(`${API_URL}protected-endpoint/`).then((r) => r.data),
 };
 
 export default studentAuthService;

@@ -1,18 +1,14 @@
 // src/Services/ResultService.ts
 
 import axios, { AxiosError } from 'axios';
+import { API_URL } from './http'; // adjust the path if http.ts lives elsewhere
 
-const API_URL = 'https://api.cobbina.uk/api';
-
-const getAuthHeaders = () => {
-  const accessToken = localStorage.getItem('access_token');
-
-  return {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  };
-};
+// Same base as before (http://localhost:8000/api), built from the shared API_URL.
+// Always ends with a slash, so endpoints below have no leading slash.
+//
+// Uses the global axios on purpose: the cookie, CSRF and refresh interceptors
+// installed by initAuth() live on it. Credentials travel in HttpOnly cookies,
+// so nothing here builds auth headers.
 
 export interface Course {
   id?: number;
@@ -222,7 +218,7 @@ const apiService = {
   courses: {
     getAll: async (): Promise<Course[]> => {
       try {
-        const response = await axios.get(`${API_URL}/courses/`, getAuthHeaders());
+        const response = await axios.get(`${API_URL}courses/`);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -232,7 +228,7 @@ const apiService = {
 
     getById: async (id: number): Promise<Course> => {
       try {
-        const response = await axios.get(`${API_URL}/courses/${id}/`, getAuthHeaders());
+        const response = await axios.get(`${API_URL}courses/${id}/`);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -242,7 +238,7 @@ const apiService = {
 
     create: async (course: Course): Promise<Course> => {
       try {
-        const response = await axios.post(`${API_URL}/courses/`, course, getAuthHeaders());
+        const response = await axios.post(`${API_URL}courses/`, course);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -252,7 +248,7 @@ const apiService = {
 
     update: async (id: number, course: Partial<Course>): Promise<Course> => {
       try {
-        const response = await axios.put(`${API_URL}/courses/${id}/`, course, getAuthHeaders());
+        const response = await axios.put(`${API_URL}courses/${id}/`, course);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -262,7 +258,7 @@ const apiService = {
 
     partialUpdate: async (id: number, course: Partial<Course>): Promise<Course> => {
       try {
-        const response = await axios.patch(`${API_URL}/courses/${id}/`, course, getAuthHeaders());
+        const response = await axios.patch(`${API_URL}courses/${id}/`, course);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -272,7 +268,7 @@ const apiService = {
 
     delete: async (id: number): Promise<any> => {
       try {
-        const response = await axios.delete(`${API_URL}/courses/${id}/`, getAuthHeaders());
+        const response = await axios.delete(`${API_URL}courses/${id}/`);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -284,7 +280,7 @@ const apiService = {
   classCourses: {
     getAll: async (): Promise<ClassCourse[]> => {
       try {
-        const response = await axios.get(`${API_URL}/class-courses/`, getAuthHeaders());
+        const response = await axios.get(`${API_URL}class-courses/`);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -294,7 +290,7 @@ const apiService = {
 
     getById: async (id: number): Promise<ClassCourse> => {
       try {
-        const response = await axios.get(`${API_URL}/class-courses/${id}/`, getAuthHeaders());
+        const response = await axios.get(`${API_URL}class-courses/${id}/`);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -304,11 +300,7 @@ const apiService = {
 
     create: async (classCourse: ClassCourse): Promise<ClassCourse> => {
       try {
-        const response = await axios.post(
-          `${API_URL}/class-courses/`,
-          classCourse,
-          getAuthHeaders()
-        );
+        const response = await axios.post(`${API_URL}class-courses/`, classCourse);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -318,11 +310,7 @@ const apiService = {
 
     update: async (id: number, classCourse: Partial<ClassCourse>): Promise<ClassCourse> => {
       try {
-        const response = await axios.put(
-          `${API_URL}/class-courses/${id}/`,
-          classCourse,
-          getAuthHeaders()
-        );
+        const response = await axios.put(`${API_URL}class-courses/${id}/`, classCourse);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -332,11 +320,7 @@ const apiService = {
 
     partialUpdate: async (id: number, classCourse: Partial<ClassCourse>): Promise<ClassCourse> => {
       try {
-        const response = await axios.patch(
-          `${API_URL}/class-courses/${id}/`,
-          classCourse,
-          getAuthHeaders()
-        );
+        const response = await axios.patch(`${API_URL}class-courses/${id}/`, classCourse);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -346,7 +330,7 @@ const apiService = {
 
     delete: async (id: number): Promise<any> => {
       try {
-        const response = await axios.delete(`${API_URL}/class-courses/${id}/`, getAuthHeaders());
+        const response = await axios.delete(`${API_URL}class-courses/${id}/`);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -359,8 +343,7 @@ const apiService = {
       term: string
     ): Promise<ClassCourse[]> => {
       try {
-        const response = await axios.get(`${API_URL}/class-courses/by_class_and_term/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}class-courses/by_class_and_term/`, {
           params: buildQueryParams({
             class_name: className,
             term,
@@ -377,9 +360,8 @@ const apiService = {
     bulkAssign: async (assignments: ClassCourse[]): Promise<any> => {
       try {
         const response = await axios.post(
-          `${API_URL}/class-courses/bulk_assign/`,
-          assignments,
-          getAuthHeaders()
+          `${API_URL}class-courses/bulk_assign/`,
+          assignments
         );
 
         return response.data;
@@ -399,8 +381,7 @@ const apiService = {
       status?: string;
     }): Promise<Result[]> => {
       try {
-        const response = await axios.get(`${API_URL}/results/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}results/`, {
           params: buildQueryParams(filters || {}),
         });
 
@@ -413,7 +394,7 @@ const apiService = {
 
     getById: async (id: number): Promise<Result> => {
       try {
-        const response = await axios.get(`${API_URL}/results/${id}/`, getAuthHeaders());
+        const response = await axios.get(`${API_URL}results/${id}/`);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -423,7 +404,7 @@ const apiService = {
 
     create: async (result: CreateResultPayload): Promise<Result> => {
       try {
-        const response = await axios.post(`${API_URL}/results/`, result, getAuthHeaders());
+        const response = await axios.post(`${API_URL}results/`, result);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -433,7 +414,7 @@ const apiService = {
 
     update: async (id: number, result: UpdateResultPayload): Promise<Result> => {
       try {
-        const response = await axios.put(`${API_URL}/results/${id}/`, result, getAuthHeaders());
+        const response = await axios.put(`${API_URL}results/${id}/`, result);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -443,7 +424,7 @@ const apiService = {
 
     partialUpdate: async (id: number, result: UpdateResultPayload): Promise<Result> => {
       try {
-        const response = await axios.patch(`${API_URL}/results/${id}/`, result, getAuthHeaders());
+        const response = await axios.patch(`${API_URL}results/${id}/`, result);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -453,7 +434,7 @@ const apiService = {
 
     delete: async (id: number): Promise<any> => {
       try {
-        const response = await axios.delete(`${API_URL}/results/${id}/`, getAuthHeaders());
+        const response = await axios.delete(`${API_URL}results/${id}/`);
         return response.data;
       } catch (error) {
         handleApiError(error);
@@ -468,8 +449,7 @@ const apiService = {
       academicYear?: string
     ): Promise<Result[]> => {
       try {
-        const response = await axios.get(`${API_URL}/results/get_student_results/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}results/get_student_results/`, {
           params: buildQueryParams({
             student: studentId,
             class_name: className,
@@ -491,8 +471,7 @@ const apiService = {
       academicYear?: string
     ): Promise<Result[]> => {
       try {
-        const response = await axios.get(`${API_URL}/results/get_class_results/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}results/get_class_results/`, {
           params: buildQueryParams({
             class_name: className,
             term,
@@ -509,10 +488,7 @@ const apiService = {
 
     getChangeLog: async (resultId: number): Promise<ResultChangeLog[]> => {
       try {
-        const response = await axios.get(
-          `${API_URL}/results/${resultId}/change_log/`,
-          getAuthHeaders()
-        );
+        const response = await axios.get(`${API_URL}results/${resultId}/change_log/`);
 
         return response.data;
       } catch (error) {
@@ -526,8 +502,7 @@ const apiService = {
       term: string
     ): Promise<ClassCourse[]> => {
       try {
-        const response = await axios.get(`${API_URL}/results/get_available_courses/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}results/get_available_courses/`, {
           params: buildQueryParams({
             class_name: className,
             term,
@@ -543,8 +518,7 @@ const apiService = {
 
     getStudentsByClass: async (className: string): Promise<Student[]> => {
       try {
-        const response = await axios.get(`${API_URL}/results/get_students_by_class/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}results/get_students_by_class/`, {
           params: buildQueryParams({
             class_name: className,
           }),
@@ -562,8 +536,7 @@ const apiService = {
     ): Promise<AttendanceSummaryResponse> => {
       try {
         const response = await axios.get(
-          `${API_URL}/results/${resultId}/attendance_summary/`,
-          getAuthHeaders()
+          `${API_URL}results/${resultId}/attendance_summary/`
         );
 
         return response.data;
@@ -579,15 +552,11 @@ const apiService = {
       academicYear?: string
     ): Promise<any> => {
       try {
-        const response = await axios.post(
-          `${API_URL}/results/recalculate_positions/`,
-          {
-            class_name: className,
-            term,
-            academic_year: academicYear,
-          },
-          getAuthHeaders()
-        );
+        const response = await axios.post(`${API_URL}results/recalculate_positions/`, {
+          class_name: className,
+          term,
+          academic_year: academicYear,
+        });
 
         return response.data;
       } catch (error) {
@@ -619,9 +588,8 @@ const apiService = {
 
       try {
         const response = await axios.post(
-          `${API_URL}/results/bulk_update_status/`,
-          payload,
-          getAuthHeaders()
+          `${API_URL}results/bulk_update_status/`,
+          payload
         );
 
         return response.data;
@@ -634,9 +602,8 @@ const apiService = {
     downloadReportCard: async (resultId: number): Promise<Blob> => {
       try {
         const response = await axios.get(
-          `${API_URL}/results/${resultId}/download_report_card/`,
+          `${API_URL}results/${resultId}/download_report_card/`,
           {
-            ...getAuthHeaders(),
             responseType: 'blob',
           }
         );
@@ -656,8 +623,7 @@ const apiService = {
       academicYear?: string
     ): Promise<Result[]> => {
       try {
-        const response = await axios.get(`${API_URL}/my-results/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}my-results/`, {
           params: buildQueryParams({
             term,
             class_name: className,
@@ -677,8 +643,7 @@ const apiService = {
       academicYear?: string
     ): Promise<Result[]> => {
       try {
-        const response = await axios.get(`${API_URL}/my-results/current_class/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}my-results/current_class/`, {
           params: buildQueryParams({
             term,
             academic_year: academicYear,
@@ -698,8 +663,7 @@ const apiService = {
       academicYear?: string
     ): Promise<Result[]> => {
       try {
-        const response = await axios.get(`${API_URL}/my-results/previous_classes/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}my-results/previous_classes/`, {
           params: buildQueryParams({
             class_name: className,
             term,
@@ -719,8 +683,7 @@ const apiService = {
     ): Promise<AttendanceSummaryResponse> => {
       try {
         const response = await axios.get(
-          `${API_URL}/my-results/${resultId}/attendance_summary/`,
-          getAuthHeaders()
+          `${API_URL}my-results/${resultId}/attendance_summary/`
         );
 
         return response.data;
@@ -742,8 +705,7 @@ const apiService = {
       courses: StudentCourse[];
     }> => {
       try {
-        const response = await axios.get(`${API_URL}/my-courses/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}my-courses/`, {
           params: buildQueryParams({
             term,
             class_name: className,
@@ -767,8 +729,7 @@ const apiService = {
       courses: StudentCourse[];
     }> => {
       try {
-        const response = await axios.get(`${API_URL}/my-courses/by_class_and_term/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}my-courses/by_class_and_term/`, {
           params: buildQueryParams({
             class_name: className,
             term,
@@ -792,8 +753,7 @@ const apiService = {
       courses: StudentCourse[];
     }> => {
       try {
-        const response = await axios.get(`${API_URL}/my-courses/previous/`, {
-          ...getAuthHeaders(),
+        const response = await axios.get(`${API_URL}my-courses/previous/`, {
           params: buildQueryParams({
             class_name: className,
             term,

@@ -68,7 +68,7 @@ const SideBar = () => {
       )
     },
     { 
-      name: 'Applications', 
+      name: 'Job Applications', 
       key: 'jobapplication', 
       path: '/dashboard/jobapplication',
       icon: (

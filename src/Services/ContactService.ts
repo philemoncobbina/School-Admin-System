@@ -1,13 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
-
-// Import the getAuthHeaders function
-const getAuthHeaders = (): { Authorization: string } => {
-    const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) {
-        throw new Error('No access token found');
-    }
-    return { Authorization: `Bearer ${accessToken}` };
-};
+import { API_URL } from './http'; // adjust the path if http.ts lives elsewhere
 
 // Define the contact data type
 interface Contact {
@@ -31,48 +23,42 @@ interface ContactLog {
     timestamp: string; // When the log entry was created
 }
 
-const API_URL = 'https://api.cobbina.uk/api/contacts/'; // Replace with your actual API URL
+// Same base as before (http://localhost:8000/api/contacts/), built from the shared API_URL.
+// Always ends with a slash.
+const CONTACTS_URL = `${API_URL}contacts/`;
+
+// Uses the global axios on purpose: the cookie, CSRF and refresh interceptors
+// installed by initAuth() live on it. Credentials travel in HttpOnly cookies,
+// so nothing here builds auth headers.
 
 class ContactService {
     async getContacts(): Promise<Contact[]> {
-        const response: AxiosResponse<Contact[]> = await axios.get(API_URL, {
-            headers: getAuthHeaders(), // Add auth headers
-        });
+        const response: AxiosResponse<Contact[]> = await axios.get(CONTACTS_URL);
         return response.data;
     }
 
     async getContactById(id: number): Promise<Contact> {
-        const response: AxiosResponse<Contact> = await axios.get(`${API_URL}${id}/`, {
-            headers: getAuthHeaders(), // Add auth headers
-        });
+        const response: AxiosResponse<Contact> = await axios.get(`${CONTACTS_URL}${id}/`);
         return response.data;
     }
 
     async createContact(contact: Omit<Contact, 'id'>): Promise<Contact> {
-        const response: AxiosResponse<Contact> = await axios.post(API_URL, contact, {
-            headers: getAuthHeaders(), // Add auth headers
-        });
+        const response: AxiosResponse<Contact> = await axios.post(CONTACTS_URL, contact);
         return response.data;
     }
 
     async updateContact(id: number, contact: Partial<Contact>): Promise<Contact> {
-        const response: AxiosResponse<Contact> = await axios.put(`${API_URL}${id}/`, contact, {
-            headers: getAuthHeaders(), // Add auth headers
-        });
+        const response: AxiosResponse<Contact> = await axios.put(`${CONTACTS_URL}${id}/`, contact);
         return response.data;
     }
 
     async deleteContact(id: number): Promise<void> {
-        await axios.delete(`${API_URL}${id}/`, {
-            headers: getAuthHeaders(), // Add auth headers
-        });
+        await axios.delete(`${CONTACTS_URL}${id}/`);
     }
 
     // New method to get logs for a specific contact
     async getContactLogs(contactId: number): Promise<ContactLog[]> {
-        const response: AxiosResponse<ContactLog[]> = await axios.get(`${API_URL}${contactId}/logs/`, {
-            headers: getAuthHeaders(), // Add auth headers
-        });
+        const response: AxiosResponse<ContactLog[]> = await axios.get(`${CONTACTS_URL}${contactId}/logs/`);
         return response.data;
     }
 }

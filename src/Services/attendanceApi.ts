@@ -1,4 +1,6 @@
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
+import { API_URL } from "./http"; // adjust the path if http.ts lives elsewhere
+import { getStoredUser } from "./Login"; // adjust the path if Login.ts lives elsewhere
 
 import {
   attendanceCache,
@@ -7,61 +9,52 @@ import {
   cachePrefixes,
 } from "./attendanceCache";
 
-const RAW_API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://api.cobbina.uk/api";
+// Same base as before (http://localhost:8000/api), built from the shared API_URL.
+// Always ends with a slash.
+const attendanceUrl = (path: string): string =>
+  `${API_URL}${path.replace(/^\/+/, "")}`;
 
-const API_BASE = String(RAW_API_BASE).replace(/\/+$/, "");
+// Uses the global axios on purpose: the cookie, CSRF and refresh interceptors
+// installed by initAuth() live on it. An axios.create() instance would not get them.
+// Credentials travel in HttpOnly cookies, so nothing here builds auth headers.
+//
+// Thin wrapper that keeps the old `attendanceApi.get("/terms/")` style working for
+// any code that imports the default export.
+const attendanceApi = {
+  get: <T = any>(path: string, config?: AxiosRequestConfig) =>
+    axios.get<T>(attendanceUrl(path), config),
+  post: <T = any>(path: string, data?: unknown, config?: AxiosRequestConfig) =>
+    axios.post<T>(attendanceUrl(path), data, config),
+  put: <T = any>(path: string, data?: unknown, config?: AxiosRequestConfig) =>
+    axios.put<T>(attendanceUrl(path), data, config),
+  patch: <T = any>(path: string, data?: unknown, config?: AxiosRequestConfig) =>
+    axios.patch<T>(attendanceUrl(path), data, config),
+  delete: <T = any>(path: string, config?: AxiosRequestConfig) =>
+    axios.delete<T>(attendanceUrl(path), config),
+};
 
-const attendanceApi = axios.create({
-  baseURL: API_BASE,
-  headers: {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-});
+// ======================================================
+// Session cache handling
+// ======================================================
 
-let activeAccessToken: string | null = null;
+// The cache used to be cleared when the access token changed or went missing.
+// With cookies there is no token to compare, so we compare the signed-in user instead.
+let activeUserId: number | null = null;
 
-const getAuthHeaders = (): { Authorization: string } => {
-  const accessToken = localStorage.getItem("access_token");
+const syncCacheWithUser = (): void => {
+  const userId = getStoredUser()?.id ?? null;
 
-  if (!accessToken) {
+  if (userId === null || (activeUserId !== null && activeUserId !== userId)) {
     attendanceCache.clear();
-    activeAccessToken = null;
-    throw new Error("No access token found.");
   }
 
-  if (
-    activeAccessToken !== null &&
-    activeAccessToken !== accessToken
-  ) {
-    attendanceCache.clear();
-  }
-
-  activeAccessToken = accessToken;
-
-  return {
-    Authorization: `Bearer ${accessToken}`,
-  };
+  activeUserId = userId;
 };
 
 export const clearAttendanceSessionCache = (): void => {
   attendanceCache.clear();
-  activeAccessToken = null;
+  activeUserId = null;
 };
-
-attendanceApi.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      clearAttendanceSessionCache();
-      localStorage.removeItem("access_token");
-    }
-
-    return Promise.reject(error);
-  }
-);
 
 // ======================================================
 // Types
@@ -335,26 +328,13 @@ function normalizeList<T>(
 }
 
 function clearAllSummaryCaches(): void {
-  attendanceCache.clearPrefix(
-    cachePrefixes.summaries
-  );
-
-  attendanceCache.clearPrefix(
-    cachePrefixes.selfSummaries
-  );
+  attendanceCache.clearPrefix(cachePrefixes.summaries);
+  attendanceCache.clearPrefix(cachePrefixes.selfSummaries);
 }
 
-function invalidateTermDependentCaches(
-  termId: number
-): void {
-  attendanceCache.delete(
-    cacheKeys.termCalendar(termId)
-  );
-
-  attendanceCache.clearPrefix(
-    cachePrefixes.rosters
-  );
-
+function invalidateTermDependentCaches(termId: number): void {
+  attendanceCache.delete(cacheKeys.termCalendar(termId));
+  attendanceCache.clearPrefix(cachePrefixes.rosters);
   clearAllSummaryCaches();
 }
 
@@ -362,25 +342,16 @@ function invalidateRegisterCaches(
   register: ClassAttendanceRegisterDetail
 ): void {
   attendanceCache.delete(
-    cacheKeys.roster(
-      register.class_name,
-      register.term,
-      register.date
-    )
+    cacheKeys.roster(register.class_name, register.term, register.date)
   );
 
   for (const record of register.records) {
     attendanceCache.delete(
-      cacheKeys.summary(
-        record.student,
-        register.term
-      )
+      cacheKeys.summary(record.student, register.term)
     );
   }
 
-  attendanceCache.clearPrefix(
-    cachePrefixes.selfSummaries
-  );
+  attendanceCache.clearPrefix(cachePrefixes.selfSummaries);
 }
 
 // ======================================================
@@ -397,24 +368,15 @@ export const AttendanceApi = {
   ): Promise<AcademicTerm[]> => {
     const response = await attendanceApi.get<
       AcademicTerm[] | PaginatedResponse<AcademicTerm>
-    >("/terms/", {
-      params,
-      headers: getAuthHeaders(),
-    });
+    >("/terms/", { params });
 
     return normalizeList(response.data);
   },
 
-  getTerm: async (
-    id: number
-  ): Promise<AcademicTerm> => {
-    const response =
-      await attendanceApi.get<AcademicTerm>(
-        `/terms/${id}/`,
-        {
-          headers: getAuthHeaders(),
-        }
-      );
+  getTerm: async (id: number): Promise<AcademicTerm> => {
+    const response = await attendanceApi.get<AcademicTerm>(
+      `/terms/${id}/`
+    );
 
     return response.data;
   },
@@ -422,23 +384,13 @@ export const AttendanceApi = {
   createTerm: async (
     payload: CreateAcademicTermPayload
   ): Promise<AcademicTerm> => {
-    const response =
-      await attendanceApi.post<AcademicTerm>(
-        "/terms/",
-        payload,
-        {
-          headers: getAuthHeaders(),
-        }
-      );
-
-    attendanceCache.clearPrefix(
-      cachePrefixes.termCalendars
+    const response = await attendanceApi.post<AcademicTerm>(
+      "/terms/",
+      payload
     );
 
-    attendanceCache.clearPrefix(
-      cachePrefixes.rosters
-    );
-
+    attendanceCache.clearPrefix(cachePrefixes.termCalendars);
+    attendanceCache.clearPrefix(cachePrefixes.rosters);
     clearAllSummaryCaches();
 
     return response.data;
@@ -448,37 +400,20 @@ export const AttendanceApi = {
     id: number,
     payload: UpdateAcademicTermPayload
   ): Promise<AcademicTerm> => {
-    const response =
-      await attendanceApi.patch<AcademicTerm>(
-        `/terms/${id}/`,
-        payload,
-        {
-          headers: getAuthHeaders(),
-        }
-      );
-
-    attendanceCache.clearPrefix(
-      cachePrefixes.termCalendars
+    const response = await attendanceApi.patch<AcademicTerm>(
+      `/terms/${id}/`,
+      payload
     );
 
-    attendanceCache.clearPrefix(
-      cachePrefixes.rosters
-    );
-
+    attendanceCache.clearPrefix(cachePrefixes.termCalendars);
+    attendanceCache.clearPrefix(cachePrefixes.rosters);
     clearAllSummaryCaches();
 
     return response.data;
   },
 
-  deleteTerm: async (
-    id: number
-  ): Promise<void> => {
-    await attendanceApi.delete(
-      `/terms/${id}/`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
+  deleteTerm: async (id: number): Promise<void> => {
+    await attendanceApi.delete(`/terms/${id}/`);
 
     invalidateTermDependentCaches(id);
   },
@@ -486,6 +421,8 @@ export const AttendanceApi = {
   getTermCalendar: async (
     termId: number
   ): Promise<TermCalendarResponse> => {
+    syncCacheWithUser();
+
     const key = cacheKeys.termCalendar(termId);
 
     return attendanceCache.getOrLoad(
@@ -493,10 +430,7 @@ export const AttendanceApi = {
       async () => {
         const response =
           await attendanceApi.get<TermCalendarResponse>(
-            `/terms/${termId}/calendar/`,
-            {
-              headers: getAuthHeaders(),
-            }
+            `/terms/${termId}/calendar/`
           );
 
         return response.data;
@@ -514,24 +448,15 @@ export const AttendanceApi = {
   ): Promise<Holiday[]> => {
     const response = await attendanceApi.get<
       Holiday[] | PaginatedResponse<Holiday>
-    >("/holidays/", {
-      params,
-      headers: getAuthHeaders(),
-    });
+    >("/holidays/", { params });
 
     return normalizeList(response.data);
   },
 
-  getHoliday: async (
-    id: number
-  ): Promise<Holiday> => {
-    const response =
-      await attendanceApi.get<Holiday>(
-        `/holidays/${id}/`,
-        {
-          headers: getAuthHeaders(),
-        }
-      );
+  getHoliday: async (id: number): Promise<Holiday> => {
+    const response = await attendanceApi.get<Holiday>(
+      `/holidays/${id}/`
+    );
 
     return response.data;
   },
@@ -539,18 +464,12 @@ export const AttendanceApi = {
   createHoliday: async (
     payload: CreateHolidayPayload
   ): Promise<Holiday> => {
-    const response =
-      await attendanceApi.post<Holiday>(
-        "/holidays/",
-        payload,
-        {
-          headers: getAuthHeaders(),
-        }
-      );
-
-    invalidateTermDependentCaches(
-      response.data.term
+    const response = await attendanceApi.post<Holiday>(
+      "/holidays/",
+      payload
     );
+
+    invalidateTermDependentCaches(response.data.term);
 
     return response.data;
   },
@@ -559,70 +478,44 @@ export const AttendanceApi = {
     id: number,
     payload: UpdateHolidayPayload
   ): Promise<Holiday> => {
-    const existingHoliday =
-      await AttendanceApi.getHoliday(id);
+    const existingHoliday = await AttendanceApi.getHoliday(id);
 
-    const response =
-      await attendanceApi.patch<Holiday>(
-        `/holidays/${id}/`,
-        payload,
-        {
-          headers: getAuthHeaders(),
-        }
-      );
-
-    invalidateTermDependentCaches(
-      existingHoliday.term
+    const response = await attendanceApi.patch<Holiday>(
+      `/holidays/${id}/`,
+      payload
     );
 
-    if (
-      response.data.term !== existingHoliday.term
-    ) {
-      invalidateTermDependentCaches(
-        response.data.term
-      );
+    invalidateTermDependentCaches(existingHoliday.term);
+
+    if (response.data.term !== existingHoliday.term) {
+      invalidateTermDependentCaches(response.data.term);
     }
 
     return response.data;
   },
 
-  deleteHoliday: async (
-    id: number
-  ): Promise<void> => {
-    const holiday =
-      await AttendanceApi.getHoliday(id);
+  deleteHoliday: async (id: number): Promise<void> => {
+    const holiday = await AttendanceApi.getHoliday(id);
 
-    await attendanceApi.delete(
-      `/holidays/${id}/`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
+    await attendanceApi.delete(`/holidays/${id}/`);
 
-    invalidateTermDependentCaches(
-      holiday.term
-    );
+    invalidateTermDependentCaches(holiday.term);
   },
 
   // ====================================================
   // Classes and students
   // ====================================================
 
-  getClasses: async (): Promise<
-    ClassChoice[]
-  > => {
+  getClasses: async (): Promise<ClassChoice[]> => {
+    syncCacheWithUser();
+
     const key = cacheKeys.classes();
 
     return attendanceCache.getOrLoad(
       key,
       async () => {
         const response =
-          await attendanceApi.get<ClassChoice[]>(
-            "/classes/",
-            {
-              headers: getAuthHeaders(),
-            }
-          );
+          await attendanceApi.get<ClassChoice[]>("/classes/");
 
         return response.data;
       },
@@ -633,21 +526,17 @@ export const AttendanceApi = {
   getStudentsByClass: async (
     params: { class_name: string }
   ): Promise<StudentMini[]> => {
-    const key = cacheKeys.studentsByClass(
-      params.class_name
-    );
+    syncCacheWithUser();
+
+    const key = cacheKeys.studentsByClass(params.class_name);
 
     return attendanceCache.getOrLoad(
       key,
       async () => {
-        const response =
-          await attendanceApi.get<StudentMini[]>(
-            "/students-by-class/",
-            {
-              params,
-              headers: getAuthHeaders(),
-            }
-          );
+        const response = await attendanceApi.get<StudentMini[]>(
+          "/students-by-class/",
+          { params }
+        );
 
         return response.data;
       },
@@ -655,22 +544,14 @@ export const AttendanceApi = {
     );
   },
 
-  invalidateStudentsByClass: (
-    className?: string
-  ): void => {
+  invalidateStudentsByClass: (className?: string): void => {
     if (className) {
-      attendanceCache.delete(
-        cacheKeys.studentsByClass(className)
-      );
+      attendanceCache.delete(cacheKeys.studentsByClass(className));
     } else {
-      attendanceCache.clearPrefix(
-        cachePrefixes.studentsByClass
-      );
+      attendanceCache.clearPrefix(cachePrefixes.studentsByClass);
     }
 
-    attendanceCache.clearPrefix(
-      cachePrefixes.rosters
-    );
+    attendanceCache.clearPrefix(cachePrefixes.rosters);
   },
 
   // ====================================================
@@ -683,10 +564,7 @@ export const AttendanceApi = {
     const response = await attendanceApi.get<
       | ClassAttendanceRegister[]
       | PaginatedResponse<ClassAttendanceRegister>
-    >("/registers/", {
-      params: filters,
-      headers: getAuthHeaders(),
-    });
+    >("/registers/", { params: filters });
 
     return normalizeList(response.data);
   },
@@ -696,10 +574,7 @@ export const AttendanceApi = {
   ): Promise<ClassAttendanceRegisterDetail> => {
     const response =
       await attendanceApi.get<ClassAttendanceRegisterDetail>(
-        `/registers/${id}/`,
-        {
-          headers: getAuthHeaders(),
-        }
+        `/registers/${id}/`
       );
 
     return response.data;
@@ -712,6 +587,8 @@ export const AttendanceApi = {
       date: string;
     }
   ): Promise<RosterResponse> => {
+    syncCacheWithUser();
+
     const key = cacheKeys.roster(
       params.class_name,
       params.term,
@@ -721,14 +598,10 @@ export const AttendanceApi = {
     return attendanceCache.getOrLoad(
       key,
       async () => {
-        const response =
-          await attendanceApi.get<RosterResponse>(
-            "/registers/roster/",
-            {
-              params,
-              headers: getAuthHeaders(),
-            }
-          );
+        const response = await attendanceApi.get<RosterResponse>(
+          "/registers/roster/",
+          { params }
+        );
 
         return response.data;
       },
@@ -742,10 +615,7 @@ export const AttendanceApi = {
     const response =
       await attendanceApi.post<ClassAttendanceRegisterDetail>(
         "/registers/mark/",
-        payload,
-        {
-          headers: getAuthHeaders(),
-        }
+        payload
       );
 
     attendanceCache.delete(
@@ -758,16 +628,11 @@ export const AttendanceApi = {
 
     for (const entry of payload.records) {
       attendanceCache.delete(
-        cacheKeys.summary(
-          entry.student,
-          payload.term
-        )
+        cacheKeys.summary(entry.student, payload.term)
       );
     }
 
-    attendanceCache.clearPrefix(
-      cachePrefixes.selfSummaries
-    );
+    attendanceCache.clearPrefix(cachePrefixes.selfSummaries);
 
     return response.data;
   },
@@ -778,10 +643,7 @@ export const AttendanceApi = {
     const response =
       await attendanceApi.post<FinalizeRegisterResponse>(
         `/registers/${registerId}/finalize/`,
-        {},
-        {
-          headers: getAuthHeaders(),
-        }
+        {}
       );
 
     const register = response.data.register;
@@ -797,15 +659,10 @@ export const AttendanceApi = {
     const response =
       await attendanceApi.post<FinalizeRegisterResponse>(
         `/registers/${registerId}/finalize/`,
-        {},
-        {
-          headers: getAuthHeaders(),
-        }
+        {}
       );
 
-    invalidateRegisterCaches(
-      response.data.register
-    );
+    invalidateRegisterCaches(response.data.register);
 
     return response.data;
   },
@@ -816,10 +673,7 @@ export const AttendanceApi = {
     const response =
       await attendanceApi.post<ClassAttendanceRegisterDetail>(
         `/registers/${registerId}/reopen/`,
-        {},
-        {
-          headers: getAuthHeaders(),
-        }
+        {}
       );
 
     invalidateRegisterCaches(response.data);
@@ -827,20 +681,10 @@ export const AttendanceApi = {
     return response.data;
   },
 
-  deleteRegister: async (
-    registerId: number
-  ): Promise<void> => {
-    await attendanceApi.delete(
-      `/registers/${registerId}/`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
+  deleteRegister: async (registerId: number): Promise<void> => {
+    await attendanceApi.delete(`/registers/${registerId}/`);
 
-    attendanceCache.clearPrefix(
-      cachePrefixes.rosters
-    );
-
+    attendanceCache.clearPrefix(cachePrefixes.rosters);
     clearAllSummaryCaches();
   },
 
@@ -852,12 +696,8 @@ export const AttendanceApi = {
     filters?: AttendanceRecordFilters
   ): Promise<AttendanceRecord[]> => {
     const response = await attendanceApi.get<
-      AttendanceRecord[] |
-      PaginatedResponse<AttendanceRecord>
-    >("/records/", {
-      params: filters,
-      headers: getAuthHeaders(),
-    });
+      AttendanceRecord[] | PaginatedResponse<AttendanceRecord>
+    >("/records/", { params: filters });
 
     return normalizeList(response.data);
   },
@@ -870,19 +710,12 @@ export const AttendanceApi = {
       absence_reason?: string | null;
     }
   ): Promise<AttendanceRecord> => {
-    const response =
-      await attendanceApi.post<AttendanceRecord>(
-        "/records/",
-        payload,
-        {
-          headers: getAuthHeaders(),
-        }
-      );
-
-    attendanceCache.clearPrefix(
-      cachePrefixes.rosters
+    const response = await attendanceApi.post<AttendanceRecord>(
+      "/records/",
+      payload
     );
 
+    attendanceCache.clearPrefix(cachePrefixes.rosters);
     clearAllSummaryCaches();
 
     return response.data;
@@ -895,38 +728,21 @@ export const AttendanceApi = {
       absence_reason?: string | null;
     }
   ): Promise<AttendanceRecord> => {
-    const response =
-      await attendanceApi.patch<AttendanceRecord>(
-        `/records/${recordId}/`,
-        payload,
-        {
-          headers: getAuthHeaders(),
-        }
-      );
-
-    attendanceCache.clearPrefix(
-      cachePrefixes.rosters
+    const response = await attendanceApi.patch<AttendanceRecord>(
+      `/records/${recordId}/`,
+      payload
     );
 
+    attendanceCache.clearPrefix(cachePrefixes.rosters);
     clearAllSummaryCaches();
 
     return response.data;
   },
 
-  deleteAttendanceRecord: async (
-    recordId: number
-  ): Promise<void> => {
-    await attendanceApi.delete(
-      `/records/${recordId}/`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
+  deleteAttendanceRecord: async (recordId: number): Promise<void> => {
+    await attendanceApi.delete(`/records/${recordId}/`);
 
-    attendanceCache.clearPrefix(
-      cachePrefixes.rosters
-    );
-
+    attendanceCache.clearPrefix(cachePrefixes.rosters);
     clearAllSummaryCaches();
   },
 
@@ -937,11 +753,10 @@ export const AttendanceApi = {
   getSummary: async (
     params: GetSummaryParams
   ): Promise<StudentAttendanceSummaryResponse> => {
+    syncCacheWithUser();
+
     if (params.student !== undefined) {
-      const key = cacheKeys.summary(
-        params.student,
-        params.term
-      );
+      const key = cacheKeys.summary(params.student, params.term);
 
       return attendanceCache.getOrLoad(
         key,
@@ -949,10 +764,7 @@ export const AttendanceApi = {
           const response =
             await attendanceApi.get<StudentAttendanceSummaryResponse>(
               "/summary/",
-              {
-                params,
-                headers: getAuthHeaders(),
-              }
+              { params }
             );
 
           return response.data;
@@ -961,8 +773,7 @@ export const AttendanceApi = {
       );
     }
 
-    const selfKey =
-      cacheKeys.selfSummary(params.term);
+    const selfKey = cacheKeys.selfSummary(params.term);
 
     return attendanceCache.getOrLoad(
       selfKey,
@@ -970,17 +781,11 @@ export const AttendanceApi = {
         const response =
           await attendanceApi.get<StudentAttendanceSummaryResponse>(
             "/summary/",
-            {
-              params,
-              headers: getAuthHeaders(),
-            }
+            { params }
           );
 
         attendanceCache.set(
-          cacheKeys.summary(
-            response.data.student.id,
-            params.term
-          ),
+          cacheKeys.summary(response.data.student.id, params.term),
           response.data,
           CACHE_TTL.SHORT
         );
@@ -999,12 +804,8 @@ export const AttendanceApi = {
     filters?: AttendanceLogFilters
   ): Promise<AttendanceLog[]> => {
     const response = await attendanceApi.get<
-      AttendanceLog[] |
-      PaginatedResponse<AttendanceLog>
-    >("/logs/", {
-      params: filters,
-      headers: getAuthHeaders(),
-    });
+      AttendanceLog[] | PaginatedResponse<AttendanceLog>
+    >("/logs/", { params: filters });
 
     return normalizeList(response.data);
   },

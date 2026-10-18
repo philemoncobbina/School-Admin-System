@@ -1,6 +1,9 @@
 import axios from 'axios';
+import { API_URL as BASE_API_URL } from './http'; // adjust the path if http.ts lives elsewhere
 
-const API_URL = 'https://api.cobbina.uk/api/tickets/'; // Replace with your actual API URL
+// Same URL as before (http://localhost:8000/api/tickets/), built from the shared API URL.
+// Always ends with a slash.
+const API_URL = `${BASE_API_URL}tickets/`;
 
 export interface Ticket {
     TicketID: string;
@@ -22,21 +25,14 @@ export interface TicketLog {
     timestamp: string;
 }
 
-// Helper function to get authorization headers
-const getAuthHeaders = (): { Authorization: string } => {
-    const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) {
-        throw new Error('No access token found');
-    }
-    return { Authorization: `Bearer ${accessToken}` };
-};
+// Uses the global axios on purpose: the cookie, CSRF and refresh interceptors
+// installed by initAuth() live on it. Credentials travel in HttpOnly cookies,
+// so nothing here builds auth headers.
 
 // Fetch all tickets
 export const fetchTickets = async (): Promise<Ticket[]> => {
     try {
-        const response = await axios.get<Ticket[]>(API_URL, {
-            headers: getAuthHeaders(),
-        });
+        const response = await axios.get<Ticket[]>(API_URL);
         return response.data;
     } catch (error) {
         console.error('Error fetching tickets:', error);
@@ -47,9 +43,7 @@ export const fetchTickets = async (): Promise<Ticket[]> => {
 // Fetch logs for a specific ticket
 export const fetchTicketLogs = async (ticketId: number): Promise<TicketLog[]> => {
     try {
-        const response = await axios.get<TicketLog[]>(`${API_URL}${ticketId}/logs/`, {
-            headers: getAuthHeaders(),
-        });
+        const response = await axios.get<TicketLog[]>(`${API_URL}${ticketId}/logs/`);
         return response.data;
     } catch (error) {
         console.error(`Error fetching logs for ticket ${ticketId}:`, error);
@@ -60,9 +54,7 @@ export const fetchTicketLogs = async (ticketId: number): Promise<TicketLog[]> =>
 // Edit a ticket
 export const editTicket = async (id: string, updatedData: Partial<Ticket>): Promise<Ticket> => {
     try {
-        const response = await axios.put<Ticket>(`${API_URL}${id}/`, updatedData, {
-            headers: getAuthHeaders(),
-        });
+        const response = await axios.put<Ticket>(`${API_URL}${id}/`, updatedData);
         return response.data;
     } catch (error) {
         console.error(`Error updating ticket ${id}:`, error);
@@ -73,9 +65,7 @@ export const editTicket = async (id: string, updatedData: Partial<Ticket>): Prom
 // Delete a ticket
 export const deleteTicket = async (id: string): Promise<void> => {
     try {
-        await axios.delete(`${API_URL}${id}/`, {
-            headers: getAuthHeaders(),
-        });
+        await axios.delete(`${API_URL}${id}/`);
     } catch (error) {
         console.error(`Error deleting ticket ${id}:`, error);
         throw error;

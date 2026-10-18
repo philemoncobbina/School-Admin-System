@@ -1,58 +1,41 @@
 // services/blogApi.js
 import axios from 'axios';
+import { API_URL } from './http'; // adjust the path if http.ts lives elsewhere
 
-const API_BASE_URL = 'https://api.cobbina.uk/api';
+// Same base as before (http://localhost:8000/api), built from the shared API_URL.
+// Always ends with a slash.
+const POSTS_URL = `${API_URL}posts/`;
 
-const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add token to requests if available
-axiosInstance.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+// Uses the global axios on purpose: the cookie, CSRF and refresh interceptors
+// installed by initAuth() live on it. An axios.create() instance would not get them.
+// Credentials travel in HttpOnly cookies, so nothing here builds auth headers.
+//
+// Reads are public, so they pass skipAuthRedirect: a visitor who isn't signed in
+// (or has a stale cookie) must not be sent to /login just for reading the blog.
 
 export const blogApi = {
   // Blog Posts
-  getAllBlogs: (params = {}) => 
-    axiosInstance.get('/posts/', { params }),
-  
-  getBlogBySlug: (slug) => 
-    axiosInstance.get(`/posts/${slug}/`),
-  
-  createBlog: (data) => 
-    axiosInstance.post('/posts/', data),
-  
-  updateBlog: (slug, data) => 
-    axiosInstance.put(`/posts/${slug}/`, data),
-  
-  deleteBlog: (slug) => 
-    axiosInstance.delete(`/posts/${slug}/`),
-  
+  getAllBlogs: (params = {}) =>
+    axios.get(POSTS_URL, { params, skipAuthRedirect: true }),
+
+  getBlogBySlug: (slug) =>
+    axios.get(`${POSTS_URL}${slug}/`, { skipAuthRedirect: true }),
+
+  createBlog: (data) =>
+    axios.post(POSTS_URL, data),
+
+  updateBlog: (slug, data) =>
+    axios.put(`${POSTS_URL}${slug}/`, data),
+
+  deleteBlog: (slug) =>
+    axios.delete(`${POSTS_URL}${slug}/`),
+
   // Helper function to create blog post with JSON data (alias for createBlog)
-  createBlogWithJSON: (data) => 
-    axiosInstance.post('/posts/', data),
-  
-  // Helper function to create blog post with FormData
-  createBlogWithFormData: (formData) => {
-    // For FormData, remove the Content-Type header to let browser set it with boundary
-    const config = {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-      }
-    };
-    return axiosInstance.post('/posts/', formData, config);
-  }
+  createBlogWithJSON: (data) =>
+    axios.post(POSTS_URL, data),
+
+  // Helper function to create blog post with FormData.
+  // Axios sets the multipart Content-Type and boundary itself.
+  createBlogWithFormData: (formData) =>
+    axios.post(POSTS_URL, formData),
 };

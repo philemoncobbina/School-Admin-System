@@ -1,7 +1,9 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { initAuth } from './Services/Login';
 import './index.css';
+initAuth();
 
 // Layouts
 import SideBar from './layouts/HomePage/SideBar';

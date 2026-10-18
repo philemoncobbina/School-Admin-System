@@ -1,62 +1,60 @@
 import axios, { AxiosResponse } from 'axios';
+import { API_URL } from './http'; // adjust the path if http.ts lives elsewhere
 
-// Helper function to get authorization headers
-const getAuthHeaders = (): { Authorization: string } => {
-  const accessToken = localStorage.getItem('access_token');
-  if (!accessToken) {
-    throw new Error('No access token found');
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+// Pulls the most useful message out of a failed response.
+const errorMessage = (error: any, fallback: string): string => {
+  if (error?.response) {
+    const data = error.response.data;
+    return data?.detail || data?.error || fallback;
   }
-  return { Authorization: `Bearer ${accessToken}` };
+  return 'Failed to connect to the server';
 };
 
-// User service class for handling authenticated user data requests
+// User service for authenticated requests.
+// Credentials travel in HttpOnly cookies and the CSRF header is added by the interceptors
+// installed in initAuth(), so nothing here builds auth headers.
 class UserService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = 'https://api.cobbina.uk/api'; // Replace with your backend URL
+    this.baseUrl = API_URL; // always ends with a slash
+  }
+
+  private url(endpoint: string): string {
+    return `${this.baseUrl}${endpoint.replace(/^\/+/, '')}`;
   }
 
   // Method to fetch user details
   public async getUserDetails(): Promise<any> {
     try {
-      const response: AxiosResponse = await axios.get(`${this.baseUrl}/user-detail-auth/`, {
-        headers: getAuthHeaders(),
-      });
-      return response.data; // User details returned from the backend
+      const response: AxiosResponse = await axios.get(this.url('user-detail-auth/'));
+      return response.data;
     } catch (error: any) {
       console.error('Error fetching user details:', error);
-      if (error.response) {
-        throw new Error(error.response.data?.detail || 'Failed to fetch user details');
-      }
-      throw new Error('Failed to connect to the server');
+      throw new Error(errorMessage(error, 'Failed to fetch user details'));
     }
   }
 
   // Generic method to make authenticated requests (GET, POST, etc.)
   public async makeAuthenticatedRequest(
     endpoint: string,
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    method: HttpMethod,
     data?: any
   ): Promise<any> {
     try {
-      const config = {
+      const response: AxiosResponse = await axios({
         method,
-        url: `${this.baseUrl}${endpoint}`,
-        headers: getAuthHeaders(),
+        url: this.url(endpoint),
         data,
-      };
-      const response: AxiosResponse = await axios(config);
+      });
       return response.data;
     } catch (error: any) {
       console.error(`Error in ${method} request to ${endpoint}:`, error);
-      if (error.response) {
-        throw new Error(error.response.data?.detail || 'Request failed');
-      }
-      throw new Error('Failed to connect to the server');
+      throw new Error(errorMessage(error, 'Request failed'));
     }
   }
 }
 
 export default new UserService();
-

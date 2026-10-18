@@ -1,17 +1,18 @@
 // admissionService.js
 import axios from 'axios';
+import { API_URL as BASE_API_URL } from './http'; // adjust the path if http.ts lives elsewhere
 
-const API_URL = 'https://api.cobbina.uk/api/admissions/'; // Base URL for admissions
+// Same URL as before (http://localhost:8000/api/admissions/), built from the shared API URL.
+// Always ends with a slash.
+const API_URL = `${BASE_API_URL}admissions/`;
 
-const getAuthHeaders = () => {
-  const accessToken = localStorage.getItem('access_token');
-  return { Authorization: `Bearer ${accessToken}` };
-};
+// Uses the global axios on purpose: the cookie, CSRF and refresh interceptors
+// installed by initAuth() live on it. An axios.create() instance would not get them.
+// Credentials travel in HttpOnly cookies, so nothing here builds auth headers.
 
 const submitForm = async (formData) => {
   try {
-    const headers = getAuthHeaders();
-    const response = await axios.post(`${API_URL}`, formData, { headers });
+    const response = await axios.post(API_URL, formData);
     return response.data;
   } catch (error) {
     handleAxiosError(error);
@@ -21,8 +22,7 @@ const submitForm = async (formData) => {
 
 const editStudent = async (id, formData) => {
   try {
-    const headers = getAuthHeaders();
-    const response = await axios.put(`${API_URL}${id}/`, formData, { headers }); // Corrected URL
+    const response = await axios.put(`${API_URL}${id}/`, formData);
     return response.data;
   } catch (error) {
     handleAxiosError(error);
@@ -32,8 +32,7 @@ const editStudent = async (id, formData) => {
 
 const fetchAdmissions = async () => {
   try {
-    const headers = getAuthHeaders();
-    const response = await axios.get(`${API_URL}all_admissions/`, { headers }); // Use my_admissions for fetching
+    const response = await axios.get(`${API_URL}all_admissions/`);
     return response.data;
   } catch (error) {
     handleAxiosError(error);
@@ -43,8 +42,7 @@ const fetchAdmissions = async () => {
 
 const deleteAdmission = async (id) => {
   try {
-    const headers = getAuthHeaders();
-    await axios.delete(`${API_URL}${id}/`, { headers });
+    await axios.delete(`${API_URL}${id}/`);
     console.log(`Student with ID ${id} deleted successfully.`);
   } catch (error) {
     handleAxiosError(error);

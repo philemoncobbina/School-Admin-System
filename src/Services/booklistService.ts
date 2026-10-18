@@ -1,8 +1,6 @@
 // src/services/booklistService.ts
 import axios, { AxiosResponse } from 'axios';
-
-// Base URL for API
-const API_URL = 'https://api.cobbina.uk/api';
+import { API_URL } from './http'; // adjust the path if http.ts lives elsewhere
 
 // Types
 export interface BookListItem {
@@ -35,123 +33,94 @@ export interface BookList {
   items: BookListItem[];
 }
 
-// API token configuration
-const getAuthHeaders = (): { Authorization: string } => {
-  const accessToken = localStorage.getItem('access_token');
-  if (!accessToken) {
-    throw new Error('No access token found');
-  }
-  return { Authorization: `Bearer ${accessToken}` };
-};
+// Same base as before (http://localhost:8000/api/booklists/), built from the shared API_URL.
+// Always ends with a slash.
+const BOOKLISTS_URL = `${API_URL}booklists/`;
+
+// Uses the global axios on purpose: the cookie, CSRF and refresh interceptors
+// installed by initAuth() live on it. Credentials travel in HttpOnly cookies,
+// so nothing here builds auth headers.
 
 // BookList API calls
 export const getBookLists = async (): Promise<BookList[]> => {
-  const response: AxiosResponse<BookList[]> = await axios.get(`${API_URL}/booklists/`, {
-    headers: getAuthHeaders(),
-  });
-  
+  const response: AxiosResponse<BookList[]> = await axios.get(BOOKLISTS_URL);
+
   // Add console.log to inspect the response
   console.log('BookLists API Response:', {
     status: response.status,
     data: response.data,
     firstItemTotalPrice: response.data[0]?.total_price,
-    firstItemPrices: response.data[0]?.items.map(item => ({
+    firstItemPrices: response.data[0]?.items.map((item) => ({
       name: item.name,
       price: item.price,
       quantity: item.quantity,
-      itemTotal: item.total_price
-    }))
+      itemTotal: item.total_price,
+    })),
   });
-  
+
   return response.data;
 };
 
 export const getBookList = async (id: number): Promise<BookList> => {
-  const response: AxiosResponse<BookList> = await axios.get(`${API_URL}/booklists/${id}/`, {
-    headers: getAuthHeaders(),
-  });
+  const response: AxiosResponse<BookList> = await axios.get(`${BOOKLISTS_URL}${id}/`);
   return response.data;
 };
 
 export const createBookList = async (bookList: Omit<BookList, 'id'>): Promise<BookList> => {
-  const response: AxiosResponse<BookList> = await axios.post(`${API_URL}/booklists/`, bookList, {
-    headers: getAuthHeaders(),
-  });
+  const response: AxiosResponse<BookList> = await axios.post(BOOKLISTS_URL, bookList);
   return response.data;
 };
 
 export const updateBookList = async (id: number, bookList: BookList): Promise<BookList> => {
-  const response: AxiosResponse<BookList> = await axios.put(`${API_URL}/booklists/${id}/`, bookList, {
-    headers: getAuthHeaders(),
-  });
+  const response: AxiosResponse<BookList> = await axios.put(`${BOOKLISTS_URL}${id}/`, bookList);
   return response.data;
 };
 
 export const deleteBookList = async (id: number): Promise<void> => {
-  await axios.delete(`${API_URL}/booklists/${id}/`, {
-    headers: getAuthHeaders(),
-  });
+  await axios.delete(`${BOOKLISTS_URL}${id}/`);
 };
 
 export const publishBookList = async (id: number): Promise<BookList> => {
   const response: AxiosResponse<BookList> = await axios.post(
-    `${API_URL}/booklists/${id}/publish/`,
-    {},
-    {
-      headers: getAuthHeaders(),
-    }
+    `${BOOKLISTS_URL}${id}/publish/`,
+    {}
   );
   return response.data;
 };
 
 export const scheduleBookList = async (id: number, scheduledDate: string): Promise<BookList> => {
   const response: AxiosResponse<BookList> = await axios.post(
-    `${API_URL}/booklists/${id}/schedule/`,
-    { scheduled_date: scheduledDate }, // Changed from publish_date to scheduled_date
-    {
-      headers: getAuthHeaders(),
-    }
+    `${BOOKLISTS_URL}${id}/schedule/`,
+    { scheduled_date: scheduledDate } // Changed from publish_date to scheduled_date
   );
   return response.data;
 };
 
 export const getDraftBookLists = async (): Promise<BookList[]> => {
-  const response: AxiosResponse<BookList[]> = await axios.get(`${API_URL}/booklists/draft/`, {
-    headers: getAuthHeaders(),
-  });
+  const response: AxiosResponse<BookList[]> = await axios.get(`${BOOKLISTS_URL}draft/`);
   return response.data;
 };
 
 // For students
 export const getMyClassBookLists = async (academicYear?: string): Promise<BookList[]> => {
-  const url = academicYear
-    ? `${API_URL}/booklists/my_class/?academic_year=${academicYear}`
-    : `${API_URL}/booklists/my_class/`;
-
-  const response: AxiosResponse<BookList[]> = await axios.get(url, {
-    headers: getAuthHeaders(),
+  const response: AxiosResponse<BookList[]> = await axios.get(`${BOOKLISTS_URL}my_class/`, {
+    params: academicYear ? { academic_year: academicYear } : undefined,
   });
   return response.data;
 };
 
 export const getCurrentClassBookLists = async (): Promise<BookList[]> => {
-  const response: AxiosResponse<BookList[]> = await axios.get(`${API_URL}/booklists/current_class/`, {
-    headers: getAuthHeaders(),
-  });
+  const response: AxiosResponse<BookList[]> = await axios.get(`${BOOKLISTS_URL}current_class/`);
   return response.data;
 };
 
 export const getHistoricalBookLists = async (): Promise<BookList[]> => {
-  const response: AxiosResponse<BookList[]> = await axios.get(`${API_URL}/booklists/history/`, {
-    headers: getAuthHeaders(),
-  });
+  const response: AxiosResponse<BookList[]> = await axios.get(`${BOOKLISTS_URL}history/`);
   return response.data;
 };
 
 export const getPreviousClassesBookLists = async (): Promise<BookList[]> => {
-  const response: AxiosResponse<BookList[]> = await axios.get(`${API_URL}/booklists/previous_classes/`, {
-    headers: getAuthHeaders(),
-  });
+  const response: AxiosResponse<BookList[]> = await axios.get(`${BOOKLISTS_URL}previous_classes/`);
   return response.data;
 };
 

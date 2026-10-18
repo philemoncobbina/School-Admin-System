@@ -5,6 +5,7 @@
  */
 
 import axios, { AxiosResponse } from "axios";
+import { API_URL } from "./http"; // adjust the path if http.ts lives elsewhere
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -75,33 +76,15 @@ export interface ListResponse {
 
 // ─── Base URL ─────────────────────────────────────────────────────────────────
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://api.cobbina.uk/api";
+// Built from the shared API_URL (http://localhost:8000/api/), which always ends with a slash.
+// The interceptors only attach cookies and the CSRF token to URLs that start with API_URL,
+// so this service must not use a different base.
+const BASE = `${API_URL}receipt-requests/`;
 
-// ─── Auth headers ─────────────────────────────────────────────────────────────
-
-const getAuthHeaders = () => {
-  const accessToken = localStorage.getItem("access_token");
-  if (!accessToken) {
-    console.warn("receiptRequestAdminApi: no access_token found in localStorage");
-  }
-  return {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-  };
-};
-
-// ─── 401 helper ───────────────────────────────────────────────────────────────
-
-const handle401 = (error: any): never => {
-  if (error?.response?.status === 401) {
-    localStorage.removeItem("access_token");
-    window.location.href = "/login";
-  }
-  throw error;
-};
+// Uses the global axios on purpose: the cookie, CSRF and refresh interceptors
+// installed by initAuth() live on it. An axios.create() instance would not get them.
+// Credentials travel in HttpOnly cookies, so nothing here builds auth headers,
+// and the interceptors already refresh the session or redirect to /login on a 401.
 
 // ─── API functions ────────────────────────────────────────────────────────────
 
@@ -112,23 +95,16 @@ const handle401 = (error: any): never => {
 export const fetchAllReceiptRequests = async (
   statusFilter?: RequestStatus | ""
 ): Promise<PaymentReceiptRequest[]> => {
-  try {
-    const params: Record<string, string> = {};
-    if (statusFilter) params.status = statusFilter;
+  const params: Record<string, string> = {};
+  if (statusFilter) params.status = statusFilter;
 
-    const response: AxiosResponse<PaymentReceiptRequest[] | ListResponse> =
-      await axios.get(`${API_BASE_URL}/receipt-requests/`, {
-        ...getAuthHeaders(),
-        params,
-      });
+  const response: AxiosResponse<PaymentReceiptRequest[] | ListResponse> =
+    await axios.get(BASE, { params });
 
-    const data = response.data;
-    if (Array.isArray(data)) return data;
-    if ("results" in data && Array.isArray(data.results)) return data.results;
-    return [];
-  } catch (error: any) {
-    return handle401(error);
-  }
+  const data = response.data;
+  if (Array.isArray(data)) return data;
+  if ("results" in data && Array.isArray(data.results)) return data.results;
+  return [];
 };
 
 /**
@@ -137,15 +113,10 @@ export const fetchAllReceiptRequests = async (
 export const fetchReceiptRequestById = async (
   id: number
 ): Promise<PaymentReceiptRequest> => {
-  try {
-    const response: AxiosResponse<PaymentReceiptRequest> = await axios.get(
-      `${API_BASE_URL}/receipt-requests/${id}/`,
-      getAuthHeaders()
-    );
-    return response.data;
-  } catch (error: any) {
-    return handle401(error);
-  }
+  const response: AxiosResponse<PaymentReceiptRequest> = await axios.get(
+    `${BASE}${id}/`
+  );
+  return response.data;
 };
 
 /**
@@ -157,16 +128,11 @@ export const reviewReceiptRequest = async (
   id: number,
   payload: ReviewPayload
 ): Promise<ReviewResponse> => {
-  try {
-    const response: AxiosResponse<ReviewResponse> = await axios.patch(
-      `${API_BASE_URL}/receipt-requests/${id}/review/`,
-      payload,
-      getAuthHeaders()
-    );
-    return response.data;
-  } catch (error: any) {
-    return handle401(error);
-  }
+  const response: AxiosResponse<ReviewResponse> = await axios.patch(
+    `${BASE}${id}/review/`,
+    payload
+  );
+  return response.data;
 };
 
 /**
@@ -175,16 +141,10 @@ export const reviewReceiptRequest = async (
 export const fetchReceiptRequestLogs = async (
   requestId: number
 ): Promise<PaymentReceiptRequestLog[]> => {
-  try {
-    const response: AxiosResponse<PaymentReceiptRequestLog[]> =
-      await axios.get(
-        `${API_BASE_URL}/receipt-requests/${requestId}/logs/`,
-        getAuthHeaders()
-      );
-    return Array.isArray(response.data) ? response.data : [];
-  } catch (error: any) {
-    return handle401(error);
-  }
+  const response: AxiosResponse<PaymentReceiptRequestLog[]> = await axios.get(
+    `${BASE}${requestId}/logs/`
+  );
+  return Array.isArray(response.data) ? response.data : [];
 };
 
 /**
@@ -192,14 +152,7 @@ export const fetchReceiptRequestLogs = async (
  * Note: only pending/rejected requests should be deletable (enforce in UI).
  */
 export const deleteReceiptRequest = async (id: number): Promise<void> => {
-  try {
-    await axios.delete(
-      `${API_BASE_URL}/receipt-requests/${id}/`,
-      getAuthHeaders()
-    );
-  } catch (error: any) {
-    return handle401(error);
-  }
+  await axios.delete(`${BASE}${id}/`);
 };
 
 /**
@@ -209,9 +162,7 @@ export const bulkDeleteReceiptRequests = async (
   ids: number[]
 ): Promise<{ deleted: number[]; failed: number[] }> => {
   const results = await Promise.allSettled(
-    ids.map((id) =>
-      axios.delete(`${API_BASE_URL}/receipt-requests/${id}/`, getAuthHeaders())
-    )
+    ids.map((id) => axios.delete(`${BASE}${id}/`))
   );
 
   const deleted: number[] = [];
@@ -228,14 +179,13 @@ export const bulkDeleteReceiptRequests = async (
   return { deleted, failed };
 };
 
-export const handleUnauthorized = (error: any): boolean => {
-  if (error?.response?.status === 401) {
-    localStorage.removeItem("access_token");
-    window.location.href = "/login";
-    return true;
-  }
-  return false;
-};
+/**
+ * Kept so existing `if (handleUnauthorized(err)) return;` calls still work.
+ * It only reports whether the error was a 401. By the time an error reaches here,
+ * the interceptors have already tried a refresh and sent the user to /login.
+ */
+export const handleUnauthorized = (error: any): boolean =>
+  error?.response?.status === 401;
 
 export default {
   fetchAllReceiptRequests,
