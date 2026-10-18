@@ -11,7 +11,7 @@ declare module 'axios' {
   }
 }
 
-const rawUrl: string =  'http://localhost:8000/api/';
+const rawUrl: string =  'https://api.cobbina.uk/api/';
 export const API_URL = rawUrl.replace(/\/*$/, '/');
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
